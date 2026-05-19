@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --yes create-next-app@14 . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(powershell -Command 'Get-ChildItem -Recurse src | Where-Object { -not $_.PSIsContainer } | Select-Object -ExpandProperty FullName | Sort-Object')",
+      "Bash(ls -la)",
+      "Bash(powershell -Command \"Get-ChildItem | Select-Object Name\")",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path src\\\\app\\\\\\(dashboard\\)\\\\clients\\\\new, 'src\\\\app\\\\\\(dashboard\\)\\\\clients\\\\[id]', 'src\\\\app\\\\\\(dashboard\\)\\\\clients\\\\[id]\\\\edit', src\\\\hooks, src\\\\lib\\\\constants | Out-Null; Write-Host 'dirs created'\")",
+      "Bash(powershell -Command ' *)"
+    ]
+  }
+}
