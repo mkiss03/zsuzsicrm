@@ -495,6 +495,10 @@ export function SignPageClient({ contract, expired, token }: Props) {
 
   const allReady = agreed && correct && hasSignature;
 
+  // ── Stable canvas callbacks (must be before any early return) ────────
+  const handleDrawSave  = useCallback((url: string) => setDrawnData(url), []);
+  const handleDrawClear = useCallback(() => setDrawnData(null), []);
+
   // ── Terminal states ──────────────────────────────────────────────────
   if (contract.status === "signed" || done) {
     return (
@@ -511,10 +515,6 @@ export function SignPageClient({ contract, expired, token }: Props) {
   if (contract.status === "expired" || contract.status === "cancelled" || expired) {
     return <Expired />;
   }
-
-  // ── Stable canvas callbacks ──────────────────────────────────────────
-  const handleDrawSave  = useCallback((url: string) => setDrawnData(url), []);
-  const handleDrawClear = useCallback(() => setDrawnData(null), []);
 
   // ── Submit ───────────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {

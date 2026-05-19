@@ -482,7 +482,7 @@ function ContractMultiPanel({ bookingId, clientEmail, existingContracts, onDone,
                     )}
                     {body === undefined && !isLoading && (
                       <p className="px-3 py-3 text-xs text-zinc-400 italic">
-                        Kattintson a „Sablon betöltése" gombra az alapértelmezett szöveg szerkesztéséhez.
+                        Kattintson a Sablon betöltése gombra az alapértelmezett szöveg szerkesztéséhez.
                       </p>
                     )}
                   </div>
