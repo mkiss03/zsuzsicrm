@@ -4,7 +4,6 @@ import { Resend } from "resend";
 import { format, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "noreply@zsuzsitravel.hu";
 
 // ─── Variable catalogue ───────────────────────────────────────────────────────
@@ -204,6 +203,7 @@ export async function POST(request: Request) {
         let resendId: string | undefined;
 
         if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== "re_xxxxxxxx") {
+          const resend = new Resend(process.env.RESEND_API_KEY);
           const { data: emailData, error: emailErr } = await resend.emails.send({
             from: `${agencyName} <${FROM_EMAIL}>`,
             to: clientEmail,

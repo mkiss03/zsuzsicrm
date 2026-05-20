@@ -2,7 +2,6 @@ import { Resend } from "resend";
 import { interpolateTemplate } from "@/lib/utils";
 import type { EmailTemplate, Client, Booking, Trip } from "@/types";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@zsuzsitravel.hu";
 
 interface SendEmailOptions {
@@ -12,6 +11,7 @@ interface SendEmailOptions {
 }
 
 export async function sendTemplatedEmail({ to, template, variables }: SendEmailOptions) {
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const subject = interpolateTemplate(template.subject, variables);
   const body = interpolateTemplate(template.body, variables);
 
