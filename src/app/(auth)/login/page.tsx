@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -67,6 +67,10 @@ function fmtCountdown(ms: number): string {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
+  return <Suspense><LoginPageContent /></Suspense>;
+}
+
+function LoginPageContent() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const supabase     = createClient();
