@@ -15,9 +15,18 @@ export async function getSessionAndRefresh(request: NextRequest): Promise<{
 }> {
   let response = NextResponse.next({ request });
 
+  const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // If env vars aren't configured (e.g. preview deploy without secrets),
+  // return the user as unauthenticated rather than crashing the middleware.
+  if (!supabaseUrl || !supabaseAnon) {
+    return { response, userId: null };
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnon,
     {
       cookies: {
         getAll() {
