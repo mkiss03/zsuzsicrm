@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
 import { toast } from "sonner";
@@ -10,7 +9,7 @@ import {
   Mail, Loader2, Inbox,
   MapPin, Plane, Star, BadgeCheck, ArrowRight,
   Search, X, Check, ChevronRight, AlertCircle,
-  CheckCircle2, SkipForward,
+  CheckCircle2, SkipForward, Users,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
