@@ -1,11 +1,12 @@
 /**
- * Austrian invoice template (Rechnung) — React-PDF
+ * Invoice PDF — botanical / elegant style  (React-PDF)
  *
- * Standards:
- * - §11 UStG mandatory fields
- * - European date format: DD.MM.YYYY
- * - European currency format: € 1.234,56
- * - All amounts in EUR
+ * Props:
+ *   language : "hu" | "de" | "bilingual"   (default "hu")
+ *   currency : "EUR" | "HUF"               (default "EUR")
+ *
+ * Design: warm beige palette, botanical leaf decorations,
+ * matches the style used by UtazóFotós / Tuza-Göncz Zsuzsanna.
  */
 
 import React from "react";
@@ -15,43 +16,264 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
+  Svg,
+  Path,
 } from "@react-pdf/renderer";
 import type { Invoice, Client, InvoiceItem } from "@/types";
 
-// ─── Colour palette (matches Tailwind config) ─────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type InvoiceLanguage = "hu" | "de" | "bilingual";
+export type InvoiceCurrency = "EUR" | "HUF";
+
+// ─── Colour palette ───────────────────────────────────────────────────────────
 
 const C = {
-  blue:        "#2563EB",  // blue-600
-  blueDark:    "#1E3A8A",  // blue-900
-  blueLight:   "#EFF6FF",  // blue-50
-  ink:         "#18181B",  // zinc-900
-  muted:       "#52525B",  // zinc-600
-  subtle:      "#71717A",  // zinc-500
-  border:      "#E4E4E7",  // zinc-200
-  surfaceAlt:  "#F4F4F5",  // zinc-100
-  surfaceFaint:"#FAFAFA",  // zinc-50
   white:       "#FFFFFF",
+  beige:       "#F6F1EB",   // warm beige section backgrounds
+  beigeAlt:    "#EDE5D8",   // table header row
+  taupe:       "#BEA98E",   // TOTAL row highlight
+  taupeDeep:   "#A08060",   // TOTAL row border accent
+  brown:       "#3D3529",   // primary text
+  brownMid:    "#7A6E5F",   // secondary text
+  brownLight:  "#B0A494",   // subtle / placeholder text
+  border:      "#D9CFBF",   // dividers / borders
+  borderLight: "#EDE8E0",   // thin separators
 };
+
+// ─── Labels ───────────────────────────────────────────────────────────────────
+
+interface LabelSet {
+  title:        string;
+  client:       string;
+  date:         string;
+  invNum:       string;
+  dueDate:      string;
+  serviceDate:  string;
+  colItem:      string;
+  colQty:       string;
+  colUnit:      string;
+  colValue:     string;
+  netTotal:     string;
+  tax:          string;
+  total:        string;
+  beneficiary:  string;
+  bankAcct:     string;
+  iban:         string;
+  bic:          string;
+  payRef:       string;
+  notes:        string;
+  thanks:       string;
+  page:         (n: number, t: number) => string;
+}
+
+const HU: LabelSet = {
+  title:       "Számla részletező",
+  client:      "Megrendelő:",
+  date:        "Dátum:",
+  invNum:      "Számlaszám:",
+  dueDate:     "Fizetési határidő:",
+  serviceDate: "Teljesítés dátuma:",
+  colItem:     "TÉTEL",
+  colQty:      "MENNYISÉG",
+  colUnit:     "EGYSÉGÁR",
+  colValue:    "ÉRTÉK",
+  netTotal:    "Nettó összeg:",
+  tax:         "ÁFA",
+  total:       "TOTAL",
+  beneficiary: "KEDVEZMÉNYEZETT",
+  bankAcct:    "Bankszámlaszám:",
+  iban:        "IBAN:",
+  bic:         "BIC/SWIFT:",
+  payRef:      "Közlemény:",
+  notes:       "Megjegyzés",
+  thanks:      "Köszönjük a bizalmat!",
+  page:        (n, t) => `${n}. oldal / ${t}`,
+};
+
+const DE: LabelSet = {
+  title:       "Rechnungsaufstellung",
+  client:      "Auftraggeber:",
+  date:        "Datum:",
+  invNum:      "Rechnungsnummer:",
+  dueDate:     "Zahlungsziel:",
+  serviceDate: "Leistungsdatum:",
+  colItem:     "POSITION",
+  colQty:      "MENGE",
+  colUnit:     "EINZELPREIS",
+  colValue:    "BETRAG",
+  netTotal:    "Nettobetrag:",
+  tax:         "MwSt.",
+  total:       "GESAMT",
+  beneficiary: "EMPFÄNGER",
+  bankAcct:    "Bankkontonummer:",
+  iban:        "IBAN:",
+  bic:         "BIC/SWIFT:",
+  payRef:      "Verwendungszweck:",
+  notes:       "Hinweis",
+  thanks:      "Vielen Dank für Ihr Vertrauen!",
+  page:        (n, t) => `Seite ${n} von ${t}`,
+};
+
+function label(key: keyof Omit<LabelSet, "page">, lang: InvoiceLanguage): string {
+  if (lang === "bilingual") return `${HU[key]} / ${DE[key]}`;
+  return lang === "de" ? DE[key] : HU[key];
+}
+
+function titleLabel(lang: InvoiceLanguage): string {
+  if (lang === "bilingual") return `${HU.title}  ·  ${DE.title}`;
+  return lang === "de" ? DE.title : HU.title;
+}
+
+function pageLabel(n: number, t: number, lang: InvoiceLanguage): string {
+  if (lang === "bilingual") return `${HU.page(n, t)}  ·  ${DE.page(n, t)}`;
+  return lang === "de" ? DE.page(n, t) : HU.page(n, t);
+}
+
+function thanksLabel(lang: InvoiceLanguage): string {
+  if (lang === "bilingual") return `${HU.thanks}  ·  ${DE.thanks}`;
+  return lang === "de" ? DE.thanks : HU.thanks;
+}
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
-/** Austrian EUR format: € 1.234,56 */
-function fmt(n: number | null | undefined): string {
-  if (n == null) return "€ 0,00";
-  const sign = n < 0 ? "-" : "";
-  const abs  = Math.abs(n);
-  const [intPart = "0", decPart = "00"] = abs.toFixed(2).split(".");
-  const thousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sign}€ ${thousands},${decPart}`;
-}
-
-/** Austrian date format: DD.MM.YYYY */
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   const parts = d.slice(0, 10).split("-");
   if (parts.length !== 3) return d;
   return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function fmtMoney(n: number | null | undefined, currency: InvoiceCurrency): string {
+  if (n == null) return currency === "HUF" ? "0 Ft" : "€ 0,00";
+  if (currency === "HUF") {
+    const rounded = Math.round(n);
+    const parts = Math.abs(rounded).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+    return (n < 0 ? "-" : "") + parts + " Ft";
+  }
+  // EUR
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const [int = "0", dec = "00"] = abs.toFixed(2).split(".");
+  const thousands = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${sign}€ ${thousands},${dec}`;
+}
+
+// ─── SVG decorations (botanical leaf clusters) ────────────────────────────────
+
+/** Top-right corner: elegant leaf branch curving from top-right inward */
+function LeafTopRight() {
+  return (
+    <Svg
+      viewBox="0 0 72 80"
+      style={{ position: "absolute", top: 0, right: 0, width: 72, height: 80, opacity: 0.75 }}
+    >
+      {/* main stem */}
+      <Path
+        d="M 68 4 C 58 12 42 28 28 44 C 18 54 10 64 6 74"
+        stroke={C.brownLight}
+        strokeWidth="1.3"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* leaf 1 – upper tip */}
+      <Path
+        d="M 68 4 C 62 0 54 2 52 10 C 58 10 66 8 68 4 Z"
+        stroke={C.brownLight}
+        strokeWidth="0.9"
+        fill="none"
+      />
+      {/* leaf 2 */}
+      <Path
+        d="M 52 18 C 58 12 66 14 66 22 C 60 22 54 20 52 18 Z"
+        stroke={C.brownLight}
+        strokeWidth="0.9"
+        fill="none"
+      />
+      {/* leaf 3 */}
+      <Path
+        d="M 38 32 C 44 26 52 28 52 36 C 46 36 40 34 38 32 Z"
+        stroke={C.brownLight}
+        strokeWidth="0.9"
+        fill="none"
+      />
+      {/* leaf 4 */}
+      <Path
+        d="M 25 46 C 30 40 38 42 38 50 C 32 50 27 48 25 46 Z"
+        stroke={C.brownLight}
+        strokeWidth="0.9"
+        fill="none"
+      />
+      {/* leaf 5 – lower */}
+      <Path
+        d="M 12 60 C 16 54 24 56 24 64 C 18 64 13 62 12 60 Z"
+        stroke={C.brownLight}
+        strokeWidth="0.9"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+/** Bottom-left corner: mirrored, larger leaf cluster */
+function LeafBottomLeft() {
+  return (
+    <Svg
+      viewBox="0 0 90 100"
+      style={{ position: "absolute", bottom: 0, left: 0, width: 90, height: 100, opacity: 0.75 }}
+    >
+      {/* main stem */}
+      <Path
+        d="M 8 96 C 18 84 34 68 50 52 C 62 40 72 28 80 12"
+        stroke={C.brownLight}
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* leaf 1 – lower */}
+      <Path
+        d="M 8 96 C 2 88 4 78 12 76 C 14 84 12 92 8 96 Z"
+        stroke={C.brownLight}
+        strokeWidth="1"
+        fill="none"
+      />
+      {/* leaf 2 */}
+      <Path
+        d="M 22 82 C 14 76 16 66 24 64 C 26 72 26 80 22 82 Z"
+        stroke={C.brownLight}
+        strokeWidth="1"
+        fill="none"
+      />
+      {/* leaf 3 */}
+      <Path
+        d="M 38 68 C 30 62 30 52 38 50 C 42 58 42 66 38 68 Z"
+        stroke={C.brownLight}
+        strokeWidth="1"
+        fill="none"
+      />
+      {/* leaf 4 */}
+      <Path
+        d="M 54 52 C 46 46 46 36 54 34 C 58 42 58 50 54 52 Z"
+        stroke={C.brownLight}
+        strokeWidth="1"
+        fill="none"
+      />
+      {/* leaf 5 */}
+      <Path
+        d="M 68 36 C 60 30 62 20 70 18 C 74 26 74 34 68 36 Z"
+        stroke={C.brownLight}
+        strokeWidth="1"
+        fill="none"
+      />
+      {/* small side leaf */}
+      <Path
+        d="M 80 12 C 74 6 76 -2 84 -2 C 88 6 86 12 80 12 Z"
+        stroke={C.brownLight}
+        strokeWidth="0.9"
+        fill="none"
+      />
+    </Svg>
+  );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -60,53 +282,68 @@ const S = StyleSheet.create({
   page: {
     fontFamily: "Helvetica",
     fontSize: 9,
-    color: C.ink,
-    paddingTop: 40,
-    paddingBottom: 70,
-    paddingLeft: 42,
-    paddingRight: 42,
-    lineHeight: 1.4,
+    color: C.brown,
+    backgroundColor: C.white,
+    paddingTop: 38,
+    paddingBottom: 65,
+    paddingLeft: 44,
+    paddingRight: 44,
+    lineHeight: 1.45,
   },
 
-  // ── Header ──────────────────────────────────────────────────────────────────
+  // ── Title area ──────────────────────────────────────────────────────────────
+  titleArea: {
+    marginBottom: 6,
+    paddingRight: 80, // leave room for leaf SVG
+  },
+  titleText: {
+    fontFamily: "Helvetica",
+    fontSize: 28,
+    color: "#B0A494",
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
 
-  header: {
+  // ── Divider ─────────────────────────────────────────────────────────────────
+  divider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginBottom: 16,
+    marginTop: 6,
+  },
+
+  // ── Client + meta block ──────────────────────────────────────────────────────
+  clientMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 20,
   },
-  companyBlock: {
+  clientBlock: {
     flex: 1,
-    paddingRight: 20,
+    paddingRight: 24,
   },
-  companyName: {
+  clientLabel: {
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
-    fontSize: 12,
-    color: C.ink,
+    color: C.brownLight,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
     marginBottom: 5,
   },
-  companyLine: {
-    fontSize: 8.5,
-    color: C.muted,
+  clientName: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 11,
+    color: C.brown,
+    marginBottom: 2,
+  },
+  clientLine: {
+    fontSize: 9,
+    color: C.brownMid,
     marginBottom: 1.5,
   },
-  companyUid: {
-    fontSize: 8.5,
-    color: C.ink,
-    fontFamily: "Helvetica-Bold",
-    marginTop: 5,
-  },
-
-  invoiceBlock: {
+  metaBlock: {
     alignItems: "flex-end",
-    minWidth: 200,
-  },
-  rechnungLabel: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 24,
-    color: C.blue,
-    letterSpacing: 3,
-    marginBottom: 10,
+    minWidth: 170,
   },
   metaRow: {
     flexDirection: "row",
@@ -115,489 +352,452 @@ const S = StyleSheet.create({
   },
   metaLabel: {
     fontSize: 8,
-    color: C.subtle,
-    width: 110,
+    color: C.brownLight,
     textAlign: "right",
     marginRight: 8,
+    width: 100,
   },
   metaValue: {
-    fontSize: 8.5,
     fontFamily: "Helvetica-Bold",
-    color: C.ink,
-    width: 85,
+    fontSize: 8.5,
+    color: C.brown,
+    width: 80,
     textAlign: "right",
   },
 
-  // ── Divider ──────────────────────────────────────────────────────────────────
-
-  dividerBlue: {
-    height: 2,
-    backgroundColor: C.blue,
-    marginBottom: 20,
-  },
-  dividerThin: {
-    height: 1,
-    backgroundColor: C.border,
-    marginVertical: 6,
-  },
-
-  // ── Recipient ────────────────────────────────────────────────────────────────
-
-  recipientSection: {
-    marginBottom: 22,
-  },
-  recipientLabel: {
-    fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-    color: C.subtle,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 5,
-  },
-  recipientName: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 10.5,
-    color: C.ink,
-    marginBottom: 2,
-  },
-  recipientLine: {
-    fontSize: 9,
-    color: C.muted,
-    marginBottom: 1.5,
-  },
-
-  // ── Table ─────────────────────────────────────────────────────────────────────
-
+  // ── Table ────────────────────────────────────────────────────────────────────
   table: {
-    marginBottom: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 2,
+    overflow: "hidden",
   },
   tableHeaderRow: {
     flexDirection: "row",
-    backgroundColor: C.surfaceAlt,
-    borderRadius: 3,
-    paddingVertical: 5,
-    marginBottom: 1,
+    backgroundColor: C.beigeAlt,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
   tableRow: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: C.surfaceAlt,
-    paddingVertical: 5,
-    backgroundColor: C.white,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.borderLight,
   },
   tableRowAlt: {
-    backgroundColor: C.surfaceFaint,
+    backgroundColor: C.beige,
   },
-
-  colHeaderCell: {
+  colHead: {
     fontFamily: "Helvetica-Bold",
     fontSize: 7.5,
-    color: C.subtle,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    color: C.brownMid,
+    letterSpacing: 0.4,
   },
   colCell: {
     fontSize: 9,
-    color: C.ink,
+    color: C.brown,
   },
+  // Column widths
+  cDesc:  { flex: 1, paddingRight: 8 },
+  cQty:   { width: 58,  textAlign: "right", paddingRight: 8 },
+  cUnit:  { width: 78,  textAlign: "right", paddingRight: 8 },
+  cVal:   { width: 78,  textAlign: "right" },
 
-  // Column widths (total content = 511pt)
-  colPos:    { width: 26,  paddingLeft: 8 },
-  colDesc:   { flex: 1,    paddingRight: 8 },
-  colQty:    { width: 46,  textAlign: "right", paddingRight: 8 },
-  colSingle: { width: 88,  textAlign: "right", paddingRight: 8 },
-  colTotal:  { width: 88,  textAlign: "right", paddingRight: 10 },
-
-  // ── Totals ────────────────────────────────────────────────────────────────────
-
+  // ── Totals ───────────────────────────────────────────────────────────────────
   totalsSection: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginBottom: 22,
+    marginBottom: 20,
   },
   totalsBox: {
-    width: 240,
+    width: 250,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 2,
+    overflow: "hidden",
   },
   totalsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 3.5,
+    alignItems: "center",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: C.borderLight,
   },
   totalsLabel: {
     fontSize: 8.5,
-    color: C.muted,
+    color: C.brownMid,
   },
   totalsValue: {
-    fontSize: 8.5,
     fontFamily: "Helvetica-Bold",
-    color: C.ink,
-    textAlign: "right",
+    fontSize: 8.5,
+    color: C.brown,
   },
-  grandTotalBox: {
+  totalFinalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: C.blueLight,
-    borderWidth: 1.5,
-    borderColor: C.blue,
-    borderRadius: 3,
     paddingVertical: 7,
     paddingHorizontal: 10,
-    marginTop: 6,
+    backgroundColor: C.taupe,
   },
-  grandTotalLabel: {
+  totalFinalLabel: {
     fontFamily: "Helvetica-Bold",
     fontSize: 11,
-    color: C.blueDark,
+    color: C.white,
+    letterSpacing: 0.5,
   },
-  grandTotalValue: {
+  totalFinalValue: {
     fontFamily: "Helvetica-Bold",
     fontSize: 12,
-    color: C.blueDark,
+    color: C.white,
   },
 
   // ── Notes ────────────────────────────────────────────────────────────────────
-
   notesBox: {
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 3,
-    padding: 8,
-    marginBottom: 16,
-    backgroundColor: C.surfaceFaint,
+    borderRadius: 2,
+    padding: 10,
+    marginBottom: 18,
+    backgroundColor: C.beige,
   },
   notesLabel: {
     fontFamily: "Helvetica-Bold",
     fontSize: 7.5,
-    color: C.subtle,
+    color: C.brownMid,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   notesText: {
     fontSize: 8.5,
-    color: C.muted,
+    color: C.brownMid,
     lineHeight: 1.6,
   },
 
-  // ── Payment info ──────────────────────────────────────────────────────────────
-
-  paymentBox: {
+  // ── Beneficiary / payment section ─────────────────────────────────────────────
+  beneSection: {
+    backgroundColor: C.beige,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 3,
-    padding: 12,
-    marginBottom: 20,
+    borderRadius: 2,
+    padding: 14,
+    marginBottom: 16,
   },
-  paymentTitle: {
+  beneTitle: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 8.5,
-    color: C.ink,
+    fontSize: 8,
+    color: C.brownMid,
+    textTransform: "uppercase",
+    letterSpacing: 1,
     marginBottom: 8,
-    paddingBottom: 5,
     borderBottomWidth: 1,
-    borderBottomColor: C.surfaceAlt,
+    borderBottomColor: C.border,
+    paddingBottom: 4,
   },
-  paymentInstruction: {
-    fontSize: 8.5,
-    color: C.muted,
-    marginBottom: 8,
-    lineHeight: 1.5,
-  },
-  bankGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 0,
-  },
-  bankRow: {
-    flexDirection: "row",
-    width: "50%",
+  beneName: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 10,
+    color: C.brown,
     marginBottom: 4,
   },
-  bankLabel: {
-    fontSize: 8,
-    color: C.subtle,
-    width: 60,
+  beneGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
-  bankValue: {
+  beneRow: {
+    flexDirection: "row",
+    width: "50%",
+    marginBottom: 3,
+  },
+  beneLabel: {
+    fontSize: 8,
+    color: C.brownLight,
+    width: 70,
+  },
+  beneValue: {
     fontFamily: "Helvetica-Bold",
     fontSize: 8,
-    color: C.ink,
+    color: C.brown,
     flex: 1,
   },
-  usageRow: {
+  payRefRow: {
     flexDirection: "row",
-    marginTop: 4,
-    paddingTop: 5,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: C.surfaceAlt,
+    borderTopColor: C.borderLight,
   },
 
-  // ── Thank-you ─────────────────────────────────────────────────────────────────
-
-  thankYou: {
-    textAlign: "center",
-    fontFamily: "Helvetica-Bold",
-    fontSize: 9.5,
-    color: C.ink,
+  // ── Contact footer ────────────────────────────────────────────────────────────
+  contactBar: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 6,
-    marginTop: 4,
+  },
+  contactText: {
+    fontSize: 8,
+    color: C.brownMid,
+    textAlign: "center",
   },
 
-  // ── Footer (fixed) ────────────────────────────────────────────────────────────
-
+  // ── Fixed page footer ──────────────────────────────────────────────────────────
   footer: {
     position: "absolute",
-    bottom: 22,
-    left: 42,
-    right: 42,
+    bottom: 18,
+    left: 44,
+    right: 44,
     borderTopWidth: 1,
-    borderTopColor: C.border,
-    paddingTop: 7,
+    borderTopColor: C.borderLight,
+    paddingTop: 5,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
-  footerLeft: {
+  footerText: {
     fontSize: 7,
-    color: C.subtle,
-    flex: 1,
-    paddingRight: 10,
-  },
-  footerRight: {
-    fontSize: 7,
-    color: C.subtle,
-    textAlign: "right",
-  },
-  footerPage: {
-    fontSize: 7,
-    color: C.subtle,
-    marginTop: 2,
+    color: C.brownLight,
   },
 });
 
-// ─── Helper sub-components ────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+function MetaRow({ lbl, val }: { lbl: string; val: string }) {
   return (
     <View style={S.metaRow}>
-      <Text style={S.metaLabel}>{label}</Text>
-      <Text style={S.metaValue}>{value}</Text>
+      <Text style={S.metaLabel}>{lbl}</Text>
+      <Text style={S.metaValue}>{val}</Text>
     </View>
   );
 }
 
-function TableHeader() {
+function TableHeaderRow({ lang }: { lang: InvoiceLanguage }) {
   return (
     <View style={S.tableHeaderRow}>
-      <Text style={[S.colHeaderCell, S.colPos]}>Pos.</Text>
-      <Text style={[S.colHeaderCell, S.colDesc]}>Beschreibung</Text>
-      <Text style={[S.colHeaderCell, S.colQty]}>Menge</Text>
-      <Text style={[S.colHeaderCell, S.colSingle]}>Einzelpreis</Text>
-      <Text style={[S.colHeaderCell, S.colTotal]}>Gesamtpreis</Text>
+      <Text style={[S.colHead, S.cDesc]}>{label("colItem", lang)}</Text>
+      <Text style={[S.colHead, S.cQty]}>{label("colQty", lang)}</Text>
+      <Text style={[S.colHead, S.cUnit]}>{label("colUnit", lang)}</Text>
+      <Text style={[S.colHead, S.cVal]}>{label("colValue", lang)}</Text>
     </View>
   );
 }
 
-function TableItemRow({ item, index }: { item: InvoiceItem; index: number }) {
-  const isAlt = index % 2 === 1;
+function TableItemRow({
+  item,
+  index,
+  currency,
+}: {
+  item: InvoiceItem;
+  index: number;
+  currency: InvoiceCurrency;
+}) {
+  const alt = index % 2 === 1;
   return (
-    <View style={isAlt ? [S.tableRow, S.tableRowAlt] : S.tableRow}>
-      <Text style={[S.colCell, S.colPos]}>{index + 1}</Text>
-      <Text style={[S.colCell, S.colDesc]}>{item.description}</Text>
-      <Text style={[S.colCell, S.colQty]}>
-        {typeof item.quantity === "number" ? item.quantity.toLocaleString("de-AT") : item.quantity}
+    <View style={[S.tableRow, alt ? S.tableRowAlt : {}]}>
+      <Text style={[S.colCell, S.cDesc]}>{item.description}</Text>
+      <Text style={[S.colCell, S.cQty]}>
+        {typeof item.quantity === "number"
+          ? item.quantity % 1 === 0
+            ? String(item.quantity)
+            : item.quantity.toFixed(2)
+          : item.quantity}
       </Text>
-      <Text style={[S.colCell, S.colSingle]}>{fmt(item.unit_price)}</Text>
-      <Text style={[S.colCell, S.colTotal]}>{fmt(item.total)}</Text>
+      <Text style={[S.colCell, S.cUnit]}>{fmtMoney(item.unit_price, currency)}</Text>
+      <Text style={[S.colCell, S.cVal]}>{fmtMoney(item.total, currency)}</Text>
     </View>
   );
 }
 
-function BankRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={S.bankRow}>
-      <Text style={S.bankLabel}>{label}</Text>
-      <Text style={S.bankValue}>{value || "—"}</Text>
-    </View>
-  );
-}
-
-// ─── Main PDF component ───────────────────────────────────────────────────────
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface InvoicePDFProps {
-  invoice: Invoice;
-  client: Client;
+  invoice:  Invoice;
+  client:   Client;
   settings: Record<string, string>;
+  language?: InvoiceLanguage;
+  currency?: InvoiceCurrency;
 }
 
-export function InvoicePDF({ invoice, client, settings }: InvoicePDFProps) {
-  const companyName    = settings["agency_legal_name"] || settings["agency_name"] || "UtazóFotós – Tuza-Göncz Zsuzsanna";
-  const street         = settings["agency_street"] || "";
-  const zip            = settings["agency_zip"]    || "";
-  const city           = settings["agency_city"]   || "";
-  const country        = settings["agency_country"] || "Ausztria";
-  const addressLine    = [street, [zip, city].filter(Boolean).join(" "), country].filter(Boolean).join(", ");
-  const email          = settings["agency_email"]   || "";
-  const phone          = settings["agency_phone"]   || "";
-  const uid            = settings["uid_nummer"]     || settings["agency_tax_number"] || "";
-  const iban           = settings["iban"]           || "";
-  const bic            = settings["bic"]            || "";
-  const bankName       = settings["bank_name"]      || "";
-  const footerText     = settings["invoice_footer_text"] || "Vielen Dank für Ihr Vertrauen!";
+// ─── Main component ───────────────────────────────────────────────────────────
 
-  const items = (invoice.items ?? []) as InvoiceItem[];
-  const subtotal   = invoice.subtotal   ?? items.reduce((s, i) => s + i.total, 0);
-  const taxAmount  = invoice.tax_amount ?? subtotal * invoice.tax_rate / 100;
-  const total      = invoice.total      ?? subtotal + taxAmount;
-  const taxRate    = invoice.tax_rate;
+export function InvoicePDF({
+  invoice,
+  client,
+  settings,
+  language = "hu",
+  currency = "EUR",
+}: InvoicePDFProps) {
+  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-Göncz Zsuzsanna, Utazó fotós";
+  const street      = settings["agency_street"]  || "";
+  const zip         = settings["agency_zip"]     || "";
+  const city        = settings["agency_city"]    || "";
+  const country     = settings["agency_country"] || "";
+  const email       = settings["agency_email"]   || "";
+  const phone       = settings["agency_phone"]   || "";
+  const iban        = settings["iban"]           || "";
+  const bic         = settings["bic"]            || "";
+  const bankName    = settings["bank_name"]      || "";
+  const bankAcctNo  = settings["bank_account_number"] || "";
 
-  const taxLabel =
-    taxRate === 20 ? "20% (Normalsatz)"      :
-    taxRate === 13 ? "13% (Ermäßigt)"        :
-    taxRate === 0  ? "0% (Steuerfrei)"       :
-                     `${taxRate}%`;
+  const items     = (invoice.items ?? []) as InvoiceItem[];
+  const subtotal  = invoice.subtotal  ?? items.reduce((s, i) => s + i.total, 0);
+  const taxAmount = invoice.tax_amount ?? subtotal * invoice.tax_rate / 100;
+  const total     = invoice.total     ?? subtotal + taxAmount;
+  const taxRate   = invoice.tax_rate ?? 0;
+  const showTax   = taxRate > 0;
 
-  const clientAddressLine = [
+  const clientAddress = [
     client.address_street,
     [client.address_zip, client.address_city].filter(Boolean).join(" "),
     client.address_country,
   ].filter(Boolean);
 
-  const footerCompanyLine =
-    [companyName, addressLine, uid ? `UID: ${uid}` : null, email, phone]
-      .filter(Boolean)
-      .join(" · ");
+  // Contact bar: phone · email
+  const contactParts = [phone, email].filter(Boolean);
+  const contactLine  = contactParts.join("  ·  ");
+
+  // Tax label
+  const taxLabel = language === "bilingual"
+    ? `${taxRate}% ÁFA / MwSt.`
+    : language === "de"
+      ? `${taxRate}% MwSt.`
+      : `${taxRate}% ÁFA`;
 
   return (
     <Document
-      title={`Rechnung ${invoice.invoice_number}`}
+      title={`${titleLabel(language)} ${invoice.invoice_number}`}
       author={companyName}
       creator="ZsuzsiCRM"
     >
       <Page size="A4" style={S.page}>
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <View style={S.header}>
-          {/* Company block */}
-          <View style={S.companyBlock}>
-            <Text style={S.companyName}>{companyName}</Text>
-            {addressLine ? <Text style={S.companyLine}>{addressLine}</Text> : null}
-            {email  ? <Text style={S.companyLine}>{email}</Text>  : null}
-            {phone  ? <Text style={S.companyLine}>{phone}</Text>  : null}
-            {uid    ? <Text style={S.companyUid}>UID-Nr.: {uid}</Text> : null}
+        {/* ── Leaf decoration — top right ─────────────────────────────────── */}
+        <LeafTopRight />
+
+        {/* ── Title ───────────────────────────────────────────────────────── */}
+        <View style={S.titleArea}>
+          <Text style={S.titleText}>{titleLabel(language)}</Text>
+        </View>
+
+        {/* ── Divider ─────────────────────────────────────────────────────── */}
+        <View style={S.divider} />
+
+        {/* ── Client + meta block ─────────────────────────────────────────── */}
+        <View style={S.clientMetaRow}>
+          <View style={S.clientBlock}>
+            <Text style={S.clientLabel}>{label("client", language)}</Text>
+            <Text style={S.clientName}>{client.last_name} {client.first_name}</Text>
+            {clientAddress.map((line, i) => (
+              <Text key={i} style={S.clientLine}>{line}</Text>
+            ))}
+            {client.phone && <Text style={S.clientLine}>{client.phone}</Text>}
+            {client.email && <Text style={S.clientLine}>{client.email}</Text>}
           </View>
 
-          {/* Invoice identity block */}
-          <View style={S.invoiceBlock}>
-            <Text style={S.rechnungLabel}>RECHNUNG</Text>
-            <MetaRow label="Rechnungsnummer:" value={invoice.invoice_number} />
-            <MetaRow label="Rechnungsdatum:"  value={fmtDate(invoice.issue_date)} />
+          <View style={S.metaBlock}>
+            <MetaRow lbl={label("date",   language)} val={fmtDate(invoice.issue_date)} />
+            <MetaRow lbl={label("invNum", language)} val={invoice.invoice_number}      />
             {invoice.service_date && (
-              <MetaRow label="Lieferdatum:" value={fmtDate(invoice.service_date)} />
+              <MetaRow lbl={label("serviceDate", language)} val={fmtDate(invoice.service_date)} />
             )}
             {invoice.due_date && (
-              <MetaRow label="Zahlungsziel:" value={fmtDate(invoice.due_date)} />
+              <MetaRow lbl={label("dueDate", language)} val={fmtDate(invoice.due_date)} />
             )}
           </View>
         </View>
 
-        {/* ── Blue divider ─────────────────────────────────────────────────── */}
-        <View style={S.dividerBlue} />
-
-        {/* ── Recipient ────────────────────────────────────────────────────── */}
-        <View style={S.recipientSection}>
-          <Text style={S.recipientLabel}>Rechnungsempfänger:</Text>
-          <Text style={S.recipientName}>
-            {client.last_name} {client.first_name}
-          </Text>
-          {clientAddressLine.map((line, i) => (
-            <Text key={i} style={S.recipientLine}>{line}</Text>
-          ))}
-        </View>
-
-        {/* ── Line items table ─────────────────────────────────────────────── */}
+        {/* ── Line-items table ────────────────────────────────────────────── */}
         <View style={S.table}>
-          <TableHeader />
+          <TableHeaderRow lang={language} />
           {items.map((item, i) => (
-            <TableItemRow key={i} item={item} index={i} />
+            <TableItemRow key={i} item={item} index={i} currency={currency} />
           ))}
         </View>
 
-        {/* ── Totals ───────────────────────────────────────────────────────── */}
+        {/* ── Totals ──────────────────────────────────────────────────────── */}
         <View style={S.totalsSection}>
           <View style={S.totalsBox}>
-            <View style={S.totalsRow}>
-              <Text style={S.totalsLabel}>Nettobetrag:</Text>
-              <Text style={S.totalsValue}>{fmt(subtotal)}</Text>
-            </View>
-            <View style={S.totalsRow}>
-              <Text style={S.totalsLabel}>MwSt. {taxLabel}:</Text>
-              <Text style={S.totalsValue}>{fmt(taxAmount)}</Text>
-            </View>
-            {taxRate === 0 && (
-              <View style={[S.totalsRow, { borderBottomWidth: 0 }]}>
-                <Text style={[S.totalsLabel, { fontSize: 7.5, fontStyle: "italic" }]}>
-                  Steuerfreie Leistung gemäß §6 UStG
-                </Text>
-              </View>
+            {showTax && (
+              <>
+                <View style={S.totalsRow}>
+                  <Text style={S.totalsLabel}>{label("netTotal", language)}</Text>
+                  <Text style={S.totalsValue}>{fmtMoney(subtotal, currency)}</Text>
+                </View>
+                <View style={S.totalsRow}>
+                  <Text style={S.totalsLabel}>{taxLabel}:</Text>
+                  <Text style={S.totalsValue}>{fmtMoney(taxAmount, currency)}</Text>
+                </View>
+              </>
             )}
-            {/* Grand total box */}
-            <View style={S.grandTotalBox}>
-              <Text style={S.grandTotalLabel}>Gesamtbetrag:</Text>
-              <Text style={S.grandTotalValue}>{fmt(total)}</Text>
+            <View style={S.totalFinalRow}>
+              <Text style={S.totalFinalLabel}>{label("total", language)}</Text>
+              <Text style={S.totalFinalValue}>{fmtMoney(total, currency)}</Text>
             </View>
           </View>
         </View>
 
-        {/* ── Notes / Zahlungshinweis ───────────────────────────────────────── */}
+        {/* ── Notes ───────────────────────────────────────────────────────── */}
         {invoice.notes ? (
           <View style={S.notesBox}>
-            <Text style={S.notesLabel}>Zahlungshinweis / Megjegyzés</Text>
+            <Text style={S.notesLabel}>{label("notes", language)}</Text>
             <Text style={S.notesText}>{invoice.notes}</Text>
           </View>
         ) : null}
 
-        {/* ── Payment information ───────────────────────────────────────────── */}
-        <View style={S.paymentBox}>
-          <Text style={S.paymentTitle}>Zahlungsinformationen</Text>
-          {invoice.due_date ? (
-            <Text style={S.paymentInstruction}>
-              Bitte überweisen Sie den Gesamtbetrag von {fmt(total)} bis zum{" "}
-              {fmtDate(invoice.due_date)} auf folgendes Konto:
-            </Text>
-          ) : (
-            <Text style={S.paymentInstruction}>
-              Bitte überweisen Sie den Gesamtbetrag von {fmt(total)} auf folgendes Konto:
-            </Text>
-          )}
-
-          <View style={S.bankGrid}>
-            {bankName ? <BankRow label="Bank:" value={bankName} /> : null}
-            <BankRow label="IBAN:" value={iban} />
-            <BankRow label="BIC:" value={bic} />
+        {/* ── Beneficiary / payment section ───────────────────────────────── */}
+        <View style={S.beneSection}>
+          <Text style={S.beneTitle}>{label("beneficiary", language)}</Text>
+          <Text style={S.beneName}>{companyName}</Text>
+          <View style={S.beneGrid}>
+            {(bankAcctNo || bankName) ? (
+              <View style={S.beneRow}>
+                <Text style={S.beneLabel}>{label("bankAcct", language)}</Text>
+                <Text style={S.beneValue}>{bankAcctNo || bankName}</Text>
+              </View>
+            ) : null}
+            {iban ? (
+              <View style={S.beneRow}>
+                <Text style={S.beneLabel}>{label("iban", language)}</Text>
+                <Text style={S.beneValue}>{iban}</Text>
+              </View>
+            ) : null}
+            {bic ? (
+              <View style={S.beneRow}>
+                <Text style={S.beneLabel}>{label("bic", language)}</Text>
+                <Text style={S.beneValue}>{bic}</Text>
+              </View>
+            ) : null}
           </View>
-
-          <View style={S.usageRow}>
-            <Text style={S.bankLabel}>Verwendungszweck:</Text>
-            <Text style={[S.bankValue, { fontFamily: "Helvetica-Bold" }]}>
+          <View style={S.payRefRow}>
+            <Text style={S.beneLabel}>{label("payRef", language)}</Text>
+            <Text style={[S.beneValue, { fontFamily: "Helvetica-Bold" }]}>
               {invoice.invoice_number}
             </Text>
           </View>
         </View>
 
-        {/* ── Thank you ────────────────────────────────────────────────────── */}
-        <Text style={S.thankYou}>{footerText}</Text>
+        {/* ── Contact bar ─────────────────────────────────────────────────── */}
+        {contactLine ? (
+          <View style={S.contactBar}>
+            <Text style={S.contactText}>{contactLine}</Text>
+          </View>
+        ) : null}
 
-        {/* ── Footer (fixed, repeats on all pages) ─────────────────────────── */}
+        {/* ── Leaf decoration — bottom left ───────────────────────────────── */}
+        <LeafBottomLeft />
+
+        {/* ── Fixed footer ────────────────────────────────────────────────── */}
         <View style={S.footer} fixed>
-          <Text style={S.footerLeft}>{footerCompanyLine}</Text>
+          <Text style={S.footerText}>{companyName}</Text>
           <Text
-            style={S.footerRight}
+            style={S.footerText}
             render={({ pageNumber, totalPages }) =>
-              `Seite ${pageNumber} von ${totalPages}`
+              pageLabel(pageNumber, totalPages, language)
             }
           />
         </View>

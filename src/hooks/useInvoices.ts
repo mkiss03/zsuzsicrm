@@ -4,6 +4,7 @@ import React, { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Invoice, InvoiceStatus, InvoiceItem, Client } from "@/types";
 import type { InvoiceFormValues } from "@/lib/validators/invoice";
+import type { InvoiceLanguage, InvoiceCurrency } from "@/lib/invoice-pdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -239,7 +240,10 @@ export function useInvoices() {
 
   // ── generatePDF — returns object URL for download/preview ─────────────────
   const generatePDF = useCallback(
-    async (invoiceId: string): Promise<string | null> => {
+    async (
+      invoiceId: string,
+      options?: { language?: InvoiceLanguage; currency?: InvoiceCurrency },
+    ): Promise<string | null> => {
       return run(async () => {
         const [{ data: invoice }, { data: settingsRows }] = await Promise.all([
           supabase.from("invoices").select("*, client:clients(*)").eq("id", invoiceId).single(),
@@ -263,6 +267,8 @@ export function useInvoices() {
           invoice: invoice as unknown as Invoice,
           client: (invoice as unknown as { client: Client }).client,
           settings,
+          language: options?.language ?? "hu",
+          currency: options?.currency ?? "EUR",
         }) as any;
         const blob = await pdf(element).toBlob();
 
