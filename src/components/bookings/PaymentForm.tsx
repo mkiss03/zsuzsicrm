@@ -36,6 +36,17 @@ const PAYMENT_TYPES = [
   { value: "refund",       label: "Visszatérítés" },
 ] as const;
 
+const BANK_ACCOUNTS = [
+  { value: "huf_account", label: "Magyar forint alapú számla", defaultCurrency: "HUF" },
+  { value: "eur_account", label: "Euró alapú osztrák számla",  defaultCurrency: "EUR" },
+  { value: "revolut",     label: "Revolut számla",             defaultCurrency: "HUF" },
+] as const;
+
+const CURRENCIES = [
+  { value: "HUF", label: "Forint (HUF)" },
+  { value: "EUR", label: "Euró (EUR)" },
+] as const;
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface PaymentFormProps {
@@ -60,6 +71,8 @@ export function PaymentForm({
     handleSubmit,
     control,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -67,9 +80,18 @@ export function PaymentForm({
       amount: remainingBalance > 0 ? remainingBalance : 0,
       type: "full_payment",
       payment_date: new Date().toISOString().slice(0, 16),
+      account: undefined,
+      currency: "HUF",
       notes: "",
     },
   });
+
+  // When account changes, auto-select the matching currency
+  const watchedAccount = watch("account");
+  useEffect(() => {
+    const acct = BANK_ACCOUNTS.find((a) => a.value === watchedAccount);
+    if (acct) setValue("currency", acct.defaultCurrency);
+  }, [watchedAccount, setValue]);
 
   // Reset form with updated default when opened
   useEffect(() => {
@@ -78,6 +100,8 @@ export function PaymentForm({
         amount: remainingBalance > 0 ? remainingBalance : 0,
         type: "full_payment",
         payment_date: new Date().toISOString().slice(0, 16),
+        account: undefined,
+        currency: "HUF",
         notes: "",
       });
     }
@@ -145,6 +169,57 @@ export function PaymentForm({
                 </Select>
               )}
             />
+          </div>
+
+          {/* Bank account + Currency (side by side) */}
+          <div className="grid grid-cols-5 gap-3">
+            <div className="col-span-3 space-y-1.5">
+              <Label className="text-sm font-medium text-zinc-700">Bankszámla</Label>
+              <Controller
+                name="account"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ?? ""}
+                    onValueChange={(v) => field.onChange(v || undefined)}
+                    disabled={loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Válassz…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BANK_ACCOUNTS.map((a) => (
+                        <SelectItem key={a.value} value={a.value}>
+                          {a.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-sm font-medium text-zinc-700">Pénznem</Label>
+              <Controller
+                name="currency"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={loading}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
           </div>
 
           {/* Payment date */}

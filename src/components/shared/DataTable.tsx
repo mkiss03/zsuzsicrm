@@ -167,7 +167,10 @@ export function DataTable<T extends object>({
             return (
               <TableRow
                 key={key}
-                className="border-zinc-100 table-row-hover"
+                className={cn(
+                  "border-zinc-100 table-row-hover",
+                  ri % 2 === 1 && "bg-zinc-50/60",
+                )}
               >
                 {columns.map((col) => (
                   <TableCell

@@ -314,6 +314,8 @@ export function useBookings() {
             amount: values.amount,
             type: values.type,
             payment_date: values.payment_date,
+            account: values.account ?? null,
+            currency: values.currency ?? "HUF",
             notes: values.notes || null,
           })
           .select()

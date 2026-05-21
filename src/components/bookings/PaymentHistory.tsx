@@ -23,6 +23,12 @@ const TYPE_META: Record<PaymentType, { label: string; variant: "info" | "warning
   refund:       { label: "Visszatérítés",  variant: "destructive" },
 };
 
+const ACCOUNT_LABELS: Record<string, string> = {
+  huf_account: "HUF számla",
+  eur_account: "EUR számla",
+  revolut:     "Revolut",
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface PaymentHistoryProps {
@@ -108,10 +114,20 @@ export function PaymentHistory({
                   className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-50"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant={meta.variant} className="text-[10px]">
                         {meta.label}
                       </Badge>
+                      {payment.account && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-medium">
+                          {ACCOUNT_LABELS[payment.account] ?? payment.account}
+                        </span>
+                      )}
+                      {payment.currency && payment.currency !== "HUF" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">
+                          {payment.currency}
+                        </span>
+                      )}
                       <span className="text-xs text-zinc-400">
                         {formatDate(payment.payment_date)}
                       </span>

@@ -32,6 +32,8 @@ export const paymentSchema = z.object({
   amount: z.coerce.number().positive("Az összeg pozitív kell legyen"),
   type: z.enum(["deposit", "full_payment", "partial", "refund"]),
   payment_date: z.string().default(new Date().toISOString()),
+  account: z.enum(["huf_account", "eur_account", "revolut"]).optional(),
+  currency: z.enum(["HUF", "EUR"]).default("HUF"),
   notes: z.string().optional(),
 });
 

@@ -151,6 +151,8 @@ export interface Payment {
   amount: number;
   type: PaymentType;
   payment_date: string;
+  account: "huf_account" | "eur_account" | "revolut" | null;
+  currency: "HUF" | "EUR" | null;
   notes: string | null;
   created_at: string;
 }
