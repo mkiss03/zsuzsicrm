@@ -12,13 +12,15 @@ import {
   Search, X, Check, ChevronRight, Users, AlertCircle,
   CheckCircle2, SkipForward, Camera, FileText, HeartPulse,
   AlertTriangle, Clock, CircleCheck, ChevronDown, ChevronUp, PenLine,
+  TrendingDown,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { Button }        from "@/components/ui/button";
 import { Badge }         from "@/components/ui/badge";
-import { cn }            from "@/lib/utils";
-import { PaymentForm }   from "@/components/bookings/PaymentForm";
+import { cn, formatCurrency } from "@/lib/utils";
+import { PaymentHistory } from "@/components/bookings/PaymentHistory";
+import { type PaymentResult } from "@/hooks/useBookings";
 import type {
   BookingContract, WorkflowStep, WorkflowStepKey, BookingStatus, Payment,
 } from "@/types";
@@ -699,9 +701,15 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
   const [steps,          setSteps]          = useState<WorkflowStep[]>([]);
   const [contracts,      setContracts]      = useState<BookingContract[]>([]);
   const [payments,       setPayments]       = useState<Payment[]>([]);
+  const [bookingStatus,  setBookingStatus]  = useState<BookingStatus>(bookingRow.status);
+  const [details,        setDetails]        = useState<{
+    base_amount: number | null;
+    discount_amount: number;
+    discount_percentage: number;
+    deposit_amount: number | null;
+  } | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [expanded,       setExpanded]       = useState<WorkflowStepKey | null>(null);
-  const [showPayForm,    setShowPayForm]    = useState(false);
   const initRef     = useRef(false);
   const autoOpenRef = useRef(false);
 
@@ -725,14 +733,19 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
   )?.key ?? null;
 
   const load = useCallback(async () => {
-    const [{ data: sd }, { data: cd }, { data: pd }] = await Promise.all([
+    const [{ data: sd }, { data: cd }, { data: pd }, { data: bd }] = await Promise.all([
       supabase.from("workflow_steps").select("*").eq("booking_id", bookingRow.id).order("created_at"),
       supabase.from("booking_contracts").select("*").eq("booking_id", bookingRow.id).order("created_at"),
       supabase.from("payments").select("*").eq("booking_id", bookingRow.id).order("payment_date", { ascending: false }),
+      supabase.from("bookings").select("base_amount, discount_amount, discount_percentage, deposit_amount, status").eq("id", bookingRow.id).single(),
     ]);
     setSteps((sd ?? []) as WorkflowStep[]);
     setContracts((cd ?? []) as BookingContract[]);
     setPayments((pd ?? []) as Payment[]);
+    if (bd) {
+      setDetails(bd as { base_amount: number | null; discount_amount: number; discount_percentage: number; deposit_amount: number | null });
+      setBookingStatus((bd as { status: BookingStatus }).status);
+    }
     setLoading(false);
   }, [bookingRow.id]);
 
@@ -861,16 +874,9 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              onClick={() => setShowPayForm(true)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <CreditCard className="mr-1.5 h-3.5 w-3.5" />Fizetés rögzítése
-            </Button>
-            <Link href={`/bookings/${bookingRow.id}`}>
+            <Link href={`/bookings/${bookingRow.id}/edit`}>
               <Button variant="outline" size="sm">
-                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />Megnyitás
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />Szerkesztés
               </Button>
             </Link>
           </div>
@@ -1033,28 +1039,59 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
             );
           })}
         </div>
+      {/* Financial breakdown */}
+      {details && (
+        <div className="mx-6 rounded-xl border border-zinc-200 bg-white p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="h-4 w-4 text-zinc-400" />
+            <h3 className="text-sm font-semibold text-zinc-700">Pénzügyi részletek</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: "Alap ár",    value: formatCurrency(details.base_amount) },
+              { label: "Kedvezmény", value: details.discount_amount > 0 ? `-${formatCurrency(details.discount_amount)} (${details.discount_percentage}%)` : "—" },
+              { label: "Végösszeg",  value: formatCurrency(bookingRow.final_amount) },
+              { label: "Előleg",     value: formatCurrency(details.deposit_amount) },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2">
+                <p className="text-[10px] text-zinc-400 mb-0.5">{label}</p>
+                <p className="text-sm font-semibold text-zinc-800">{value}</p>
+              </div>
+            ))}
+          </div>
+          {(() => {
+            const totalPaid = payments.reduce((s, p) => p.type === "refund" ? s - p.amount : s + p.amount, 0);
+            const remaining = bookingRow.final_amount != null ? Math.max(bookingRow.final_amount - totalPaid, 0) : null;
+            return remaining !== null ? (
+              <div className={cn(
+                "mt-3 flex items-center justify-between rounded-lg px-4 py-2.5 text-sm font-medium",
+                remaining === 0 ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700",
+              )}>
+                <span>Fennmaradó egyenleg</span>
+                <span className="font-bold">{formatCurrency(remaining)}</span>
+              </div>
+            ) : null;
+          })()}
+        </div>
+      )}
+
+      {/* Payment history */}
+      <div className="mx-6 mb-6">
+        <PaymentHistory
+          bookingId={bookingRow.id}
+          finalAmount={bookingRow.final_amount}
+          payments={payments}
+          currentStatus={bookingStatus}
+          onPaymentAdded={(result: PaymentResult) => {
+            setPayments(prev => [...prev, result.payment]);
+            setBookingStatus(result.newStatus);
+          }}
+          onPaymentDeleted={(paymentId: string, newStatus: BookingStatus) => {
+            setPayments(prev => prev.filter(p => p.id !== paymentId));
+            setBookingStatus(newStatus);
+          }}
+        />
       </div>
-      {/* Payment form dialog — accessible directly from Workflow Center */}
-      {(() => {
-        const totalPaid = payments.reduce(
-          (s, p) => (p.type === "refund" ? s - p.amount : s + p.amount),
-          0,
-        );
-        const remaining = Math.max((bookingRow.final_amount ?? 0) - totalPaid, 0);
-        return (
-          <PaymentForm
-            open={showPayForm}
-            bookingId={bookingRow.id}
-            remainingBalance={remaining}
-            onSuccess={() => {
-              setShowPayForm(false);
-              void load();
-              toast.success("Fizetés sikeresen rögzítve");
-            }}
-            onCancel={() => setShowPayForm(false)}
-          />
-        );
-      })()}
     </div>
   );
 }
