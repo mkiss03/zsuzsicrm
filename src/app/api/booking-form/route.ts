@@ -62,6 +62,7 @@ const formSchema = z.object({
   email:    z.string().email("Érvényes email cím szükséges").trim().toLowerCase(),
   phone:    z.string().min(6, "Legalább 6 karakter").max(20, "Legfeljebb 20 karakter").trim(),
   trip:     z.string().min(2, "Legalább 2 karakter").max(200).trim(),
+  trip_id:  z.string().uuid().optional(),
   message:  z.string().max(1000, "Legfeljebb 1000 karakter").trim().optional().default(""),
   honeypot: z.string().max(0, "").default(""),   // must be empty
 });
@@ -202,7 +203,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const { name, email, phone, trip: tripName, message } = parsed.data;
+  const { name, email, phone, trip: tripName, trip_id: tripId, message } = parsed.data;
 
   // ── Rate limiting (after honeypot/validation to avoid unnecessary DB hits)
   const ip  = getClientIp(request);
@@ -267,17 +268,32 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // ── STEP 4: Trip lookup ────────────────────────────────────────────────
-    const { data: tripData } = await supabase
-      .from("trips")
-      .select("*")
-      .ilike("name", `%${tripName}%`)
-      .not("status", "in", '("completed","cancelled")')
-      .is("deleted_at", null)
-      .order("departure_date")
-      .limit(1)
-      .maybeSingle();
+    let matchedTrip: Trip | null = null;
 
-    const matchedTrip = tripData as Trip | null;
+    if (tripId) {
+      // Exact ID match — sent by the booking form dropdown
+      const { data: tripById } = await supabase
+        .from("trips")
+        .select("*")
+        .eq("id", tripId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      matchedTrip = (tripById as Trip | null) ?? null;
+    }
+
+    if (!matchedTrip) {
+      // Fallback: fuzzy name search (backward-compat with plain-text forms)
+      const { data: tripData } = await supabase
+        .from("trips")
+        .select("*")
+        .ilike("name", `%${tripName}%`)
+        .not("status", "in", '("completed","cancelled")')
+        .is("deleted_at", null)
+        .order("departure_date")
+        .limit(1)
+        .maybeSingle();
+      matchedTrip = (tripData as Trip | null) ?? null;
+    }
 
     // ── STEP 4b: Create booking ────────────────────────────────────────────
     const notesParts = [

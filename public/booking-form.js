@@ -32,6 +32,7 @@
 
   var cfg = Object.assign({
     apiUrl:       '',
+    tripsApiUrl:  null,   // auto-derived from apiUrl if not set
     formSelector: null,
     fieldMap: {
       name:    ['name', 'nev', 'neve', 'full_name'],
@@ -44,6 +45,7 @@
     phoneNumber:   '+36 30 247 3323',
     onSuccess:     null,
     onError:       null,
+    loadTrips:     true,  // set false to disable automatic trip list loading
   }, window.ZsuzsiCRMConfig || {});
 
   // ─── Messages ────────────────────────────────────────────────────────────────
@@ -146,6 +148,100 @@
     form.parentNode.insertBefore(box, form.nextSibling);
   }
 
+  // ─── Trip list loader ──────────────────────────────────────────────────────────
+
+  /**
+   * Fetches the public trip list from the CRM and populates the trip field.
+   * - If the trip field is a <select>, options are replaced (value = trip UUID).
+   * - If the trip field is a text <input>, a <datalist> is added for autocomplete.
+   * In both cases a hidden <input name="trip_id"> is added to carry the UUID.
+   */
+  function loadTrips(form, apiBaseUrl) {
+    if (!cfg.loadTrips) return;
+
+    var tripsUrl = cfg.tripsApiUrl ||
+      apiBaseUrl.replace(/\/booking-form\/?$/, '') + '/trips/public';
+
+    var tripEl = findField(form, cfg.fieldMap.trip);
+    if (!tripEl) return;
+
+    fetch(tripsUrl, { method: 'GET' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.success || !data.trips || !data.trips.length) return;
+
+        // ── Add hidden trip_id carrier (idempotent) ──────────────────────
+        var hiddenId = form.querySelector('input[name="trip_id"]');
+        if (!hiddenId) {
+          hiddenId = document.createElement('input');
+          hiddenId.type = 'hidden';
+          hiddenId.name = 'trip_id';
+          form.appendChild(hiddenId);
+        }
+
+        if (tripEl.tagName === 'SELECT') {
+          // ── SELECT: replace options with real trips ────────────────────
+          var hasPlaceholder = tripEl.options.length > 0 && !tripEl.options[0].value;
+          var placeholderText = hasPlaceholder ? tripEl.options[0].textContent : '\u2014 V\u00e1lassz utaz\u00e1st \u2014';
+          tripEl.innerHTML = '';
+
+          var ph = document.createElement('option');
+          ph.value = '';
+          ph.textContent = placeholderText;
+          tripEl.appendChild(ph);
+
+          data.trips.forEach(function (trip) {
+            var opt = document.createElement('option');
+            opt.value = trip.id;
+            var d = trip.departure_date
+              ? new Date(trip.departure_date).toLocaleDateString('hu-HU', {
+                  year: 'numeric', month: 'long', day: 'numeric'
+                })
+              : '';
+            opt.textContent = trip.name + (d ? ' \u2013 ' + d : '') +
+              (trip.status === 'full' ? ' (megtelt)' : '');
+            if (trip.status === 'full') opt.disabled = true;
+            tripEl.appendChild(opt);
+          });
+
+          // Sync hidden trip_id on change
+          tripEl.addEventListener('change', function () {
+            hiddenId.value = tripEl.value;
+          });
+
+        } else {
+          // ── TEXT INPUT: add datalist for autocomplete ──────────────────
+          var listId = 'crm-trips-list';
+          var existing = document.getElementById(listId);
+          if (existing) existing.remove();
+
+          var datalist = document.createElement('datalist');
+          datalist.id = listId;
+
+          // Store trip data on the element for ID lookup at submit time
+          tripEl._crmTrips = data.trips;
+
+          data.trips.forEach(function (trip) {
+            var opt = document.createElement('option');
+            var d = trip.departure_date
+              ? new Date(trip.departure_date).toLocaleDateString('hu-HU', {
+                  year: 'numeric', month: 'long', day: 'numeric'
+                })
+              : '';
+            opt.value = trip.name + (d ? ' \u2013 ' + d : '');
+            opt.setAttribute('data-trip-id', trip.id);
+            datalist.appendChild(opt);
+          });
+
+          document.body.appendChild(datalist);
+          tripEl.setAttribute('list', listId);
+        }
+      })
+      .catch(function () {
+        // Silent fail — form works without the trip list
+      });
+  }
+
   // ─── Honeypot insertion ───────────────────────────────────────────────────────
 
   function addHoneypot(form) {
@@ -209,6 +305,7 @@
 
     injectStyles();
     addHoneypot(form);
+    loadTrips(form, apiUrl);
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -221,13 +318,42 @@
       var tripEl    = findField(form, cfg.fieldMap.trip);
       var messageEl = findField(form, cfg.fieldMap.message);
       var hpEl      = form.querySelector('[name="' + cfg.honeypotName + '"]');
+      var tripIdEl  = form.querySelector('input[name="trip_id"]');
 
       var nameVal    = getValue(nameEl);
       var emailVal   = getValue(emailEl);
       var phoneVal   = getValue(phoneEl);
-      var tripVal    = getValue(tripEl);
       var messageVal = getValue(messageEl);
       var hpVal      = getValue(hpEl);
+
+      // ── Resolve trip name + ID ────────────────────────────────────────────
+      var tripVal   = '';
+      var tripIdVal = '';
+
+      if (tripEl && tripEl.tagName === 'SELECT') {
+        // Value is the UUID; get human-readable name from selected option text
+        tripIdVal = getValue(tripEl);
+        var selOpt = tripEl.options[tripEl.selectedIndex];
+        tripVal   = selOpt && tripIdVal ? selOpt.textContent : '';
+      } else {
+        tripVal = getValue(tripEl);
+        // Try to resolve ID from datalist-backed text input
+        if (tripEl && tripEl._crmTrips) {
+          var matched = tripEl._crmTrips.find(function (t) {
+            var d = t.departure_date
+              ? new Date(t.departure_date).toLocaleDateString('hu-HU', {
+                  year: 'numeric', month: 'long', day: 'numeric'
+                })
+              : '';
+            var label = t.name + (d ? ' \u2013 ' + d : '');
+            return label.toLowerCase() === tripVal.toLowerCase() ||
+                   t.name.toLowerCase() === tripVal.toLowerCase();
+          });
+          if (matched) tripIdVal = matched.id;
+        }
+        // Fall back to hidden input value if set
+        if (!tripIdVal && tripIdEl) tripIdVal = getValue(tripIdEl);
+      }
 
       // ── Client-side validation ────────────────────────────────────────────
       var hasError = false;
@@ -256,6 +382,7 @@
           email:    emailVal,
           phone:    phoneVal,
           trip:     tripVal,
+          trip_id:  tripIdVal || undefined,
           message:  messageVal,
           honeypot: hpVal,
         }),
