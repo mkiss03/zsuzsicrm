@@ -629,8 +629,7 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
                 <div className={cn(
                   "rounded-xl overflow-hidden transition-all duration-200",
                   isOpen && "ring-2 ring-offset-0",
-                  isOpen && def.key === "contract_send" ? "ring-violet-200"
-                    : isOpen && def.emailTemplate ? "ring-blue-200"
+                  isOpen && def.emailTemplate ? "ring-blue-200"
                     : isOpen ? "ring-zinc-200"
                     : "",
                 )}>
