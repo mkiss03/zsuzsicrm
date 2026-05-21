@@ -358,10 +358,6 @@ function ActionPanel({ overdue, soonDue, passports, lowCap }: {
           )}
         </div>
       )}
-
-      <Link href="/notifications" className="mt-4 flex items-center gap-1 text-[12px] text-blue-600 hover:underline">
-        Összes értesítés <IconChevronRight size={11} stroke={2} />
-      </Link>
     </div>
   );
 }

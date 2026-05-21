@@ -32,7 +32,7 @@ export default async function BookingDetailPage({ params }: Props) {
 
   const b = booking as unknown as Booking & {
     client: Client;
-    trip: Trip;
+    trip: Trip | null;
     payments: Payment[];
   };
 

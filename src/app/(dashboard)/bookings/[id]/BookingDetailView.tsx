@@ -60,7 +60,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof User; label: strin
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  booking: Booking & { client: Client; trip: Trip };
+  booking: Booking & { client: Client; trip: Trip | null };
   initialPayments: Payment[];
 }
 
@@ -136,7 +136,7 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),
       items: [{
-        description: trip.name,
+        description: trip?.name ?? "Utazás",
         quantity: 1,
         unit_price: booking.final_amount ?? 0,
         total: booking.final_amount ?? 0,
@@ -173,8 +173,12 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
           </div>
           <p className="text-zinc-600">
             <span className="font-medium">{client.last_name} {client.first_name}</span>
-            {" — "}
-            <span>{trip.name}</span>
+            {trip && (
+              <>
+                {" — "}
+                <span>{trip.name}</span>
+              </>
+            )}
           </p>
           <p className="text-xs text-zinc-400 mt-0.5">
             Létrehozva: {formatDate(booking.created_at)}
@@ -244,14 +248,22 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
         <div className="rounded-md border border-zinc-200 bg-white p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-zinc-700">Utazás adatai</h3>
-            <Link href={`/trips/${trip.id}`} className="text-xs text-blue-600 hover:underline">
-              Utazás részletei →
-            </Link>
+            {trip && (
+              <Link href={`/trips/${trip.id}`} className="text-xs text-blue-600 hover:underline">
+                Utazás részletei →
+              </Link>
+            )}
           </div>
-          <InfoRow icon={User} label="Út neve" value={trip.name} />
-          <InfoRow icon={MapPin} label="Úti cél" value={trip.destination} />
-          <InfoRow icon={CalendarDays} label="Dátum" value={`${formatDate(trip.departure_date)} – ${formatDate(trip.return_date)}`} />
-          <InfoRow icon={User} label="Kód" value={trip.trip_code} />
+          {trip ? (
+            <>
+              <InfoRow icon={User} label="Út neve" value={trip.name} />
+              <InfoRow icon={MapPin} label="Úti cél" value={trip.destination} />
+              <InfoRow icon={CalendarDays} label="Dátum" value={`${formatDate(trip.departure_date)} – ${formatDate(trip.return_date)}`} />
+              <InfoRow icon={User} label="Kód" value={trip.trip_code} />
+            </>
+          ) : (
+            <p className="text-sm text-zinc-400 py-2">Nincs hozzárendelt utazás</p>
+          )}
         </div>
       </div>
 
@@ -304,8 +316,8 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
             bookingId={booking.id}
             bookingStatus={booking.status}
             clientEmail={client.email ?? null}
-            tripDepartureDate={trip.departure_date}
-            tripReturnDate={trip.return_date}
+            tripDepartureDate={trip?.departure_date ?? null}
+            tripReturnDate={trip?.return_date ?? null}
           />
         </TabsContent>
       </Tabs>

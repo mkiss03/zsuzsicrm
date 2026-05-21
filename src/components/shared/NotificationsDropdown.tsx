@@ -203,10 +203,10 @@ export function NotificationsDropdown() {
         {/* Footer */}
         <div className="border-t border-zinc-100 px-4 py-2">
           <button
-            onClick={() => { router.push("/notifications"); setOpen(false); }}
-            className="text-[12px] text-blue-600 hover:underline"
+            onClick={() => setOpen(false)}
+            className="text-[12px] text-zinc-400"
           >
-            Összes megtekintése
+            Bezárás
           </button>
         </div>
       </PopoverContent>
