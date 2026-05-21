@@ -180,12 +180,11 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: destErr.message }, { status: 500 });
   }
 
-  // Fetch all non-cancelled, future departures
+  // Fetch all future departures (all statuses — filter cancelled in code to avoid enum issues)
   const today = new Date().toISOString().slice(0, 10);
   const { data: departures, error: depErr } = await website
     .from("departures")
     .select("id, destination_id, date_iso, duration_days, price_from, max_people, status, note")
-    .not("status", "eq", "cancelled")
     .gte("date_iso", today);
 
   if (depErr) {
@@ -204,6 +203,8 @@ export async function GET(request: Request): Promise<Response> {
 
   for (const dep of departures ?? []) {
     const d = dep as WebsiteDeparture;
+    // Skip departures that map to cancelled — don't import them into CRM
+    if (mapStatus(d.status) === "cancelled") continue;
     const dest = destMap.get(d.destination_id);
     if (!dest) continue;                        // orphaned departure — skip
 
