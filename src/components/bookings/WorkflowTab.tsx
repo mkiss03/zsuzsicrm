@@ -1,22 +1,21 @@
 "use client";
 
 /**
- * WorkflowTab — 13-step booking lifecycle manager
+ * WorkflowTab — 11-step booking lifecycle manager
  *
  * PHASES:
  *  1. Fogadás        → inquiry_received, confirmation_sent
- *  2. Szerződés      → contract_send, contract_sign
- *  3. Fizetés        → deposit_request, deposit_paid, docs_verify, full_payment_request, full_paid
- *  4. Előkészítés    → pre_trip_send
- *  5. Utazás         → trip_started, trip_completed, followup_sent
+ *  2. Fizetés        → deposit_request, deposit_paid, docs_verify, full_payment_request, full_paid
+ *  3. Előkészítés    → pre_trip_send
+ *  4. Utazás         → trip_started, trip_completed, followup_sent
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  CheckCircle2, Circle, Clock, Send, FileSignature,
+  CheckCircle2, Circle, Send,
   Wallet, ShieldCheck, CreditCard, Mail, Loader2,
-  Copy, ExternalLink, SkipForward, Eye, Inbox,
+  SkipForward, Inbox,
   MapPin, Plane, Star, BadgeCheck, ArrowRight,
   MessageSquare,
 } from "lucide-react";
@@ -30,12 +29,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+
 import { cn } from "@/lib/utils";
 import type {
-  BookingContract, WorkflowStep, WorkflowStepKey, BookingStatus,
+  WorkflowStep, WorkflowStepKey, BookingStatus,
 } from "@/types";
 
 // ─── Step definitions ──────────────────────────────────────────────────────────
@@ -46,35 +43,32 @@ interface StepDef {
   desc: string;
   icon: typeof Circle;
   mode: "auto" | "manual";
-  phase: 1 | 2 | 3 | 4 | 5;
+  phase: 1 | 2 | 3 | 4;
   actionLabel?: string;
   emailTemplate?: string;
 }
 
 const ALL_STEPS: StepDef[] = [
   { key: "inquiry_received",     title: "Érdeklődés rögzítve",       desc: "A foglalás beérkezett a rendszerbe.",                             mode: "auto",   phase: 1, icon: Inbox },
-  { key: "confirmation_sent",    title: "Visszaigazolás elküldve",    desc: "Foglalási visszaigazolás elküldve az ügyfélnek.",                 mode: "manual", phase: 1, icon: Mail,          actionLabel: "Visszaigazolás küldése", emailTemplate: "booking_confirmation" },
-  { key: "contract_send",        title: "Nyilatkozat elküldve",       desc: "Foglalási nyilatkozat elküldve aláírásra.",                       mode: "manual", phase: 2, icon: Send,          actionLabel: "Nyilatkozat küldése" },
-  { key: "contract_sign",        title: "Nyilatkozat aláírva",        desc: "Az ügyfél elektronikusan aláírta a nyilatkozatot.",               mode: "auto",   phase: 2, icon: FileSignature },
-  { key: "deposit_request",      title: "Előleg bekérve",             desc: "Előlegfizetési felszólítás elküldve.",                           mode: "manual", phase: 3, icon: Wallet,        actionLabel: "Előleg email küldése",   emailTemplate: "deposit_request" },
-  { key: "deposit_paid",         title: "Előleg befizetve",           desc: "Az előleg összege beérkezett.",                                  mode: "auto",   phase: 3, icon: BadgeCheck },
-  { key: "docs_verify",          title: "Dokumentumok ellenőrizve",   desc: "Útlevél, vízum, biztosítás rendben.",                            mode: "manual", phase: 3, icon: ShieldCheck,   actionLabel: "Megjelölés rendben" },
-  { key: "full_payment_request", title: "Végösszeg bekérve",          desc: "Végső fizetési emlékeztető elküldve.",                           mode: "manual", phase: 3, icon: CreditCard,    actionLabel: "Emlékeztető küldése",    emailTemplate: "reminder" },
-  { key: "full_paid",            title: "Végösszeg befizetve",        desc: "A teljes összeg beérkezett.",                                    mode: "auto",   phase: 3, icon: BadgeCheck },
-  { key: "pre_trip_send",        title: "Utazás előtti tájékoztató",  desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",        mode: "manual", phase: 4, icon: MapPin,        actionLabel: "Tájékoztató küldése",    emailTemplate: "pre_trip" },
-  { key: "trip_started",         title: "Utazás megkezdve",           desc: "Az utazócsoport elindult.",                                      mode: "auto",   phase: 5, icon: Plane },
-  { key: "trip_completed",       title: "Utazás befejezve",           desc: "Az utazás sikeresen véget ért.",                                 mode: "auto",   phase: 5, icon: CheckCircle2 },
-  { key: "followup_sent",        title: "Visszajelzés kérve",         desc: "Köszönő email és értékelési kérés elküldve.",                    mode: "manual", phase: 5, icon: Star,          actionLabel: "Köszönő email küldése",  emailTemplate: "followup" },
+  { key: "confirmation_sent",    title: "Visszaigazolás elküldve",    desc: "Visszaigazolás elküldve — minden tudnivaló és fájl csatolva.",   mode: "manual", phase: 1, icon: Mail,       actionLabel: "Visszaigazolás küldése", emailTemplate: "booking_confirmation" },
+  { key: "deposit_request",      title: "Előleg bekérve",             desc: "Előlegfizetési felszólítás elküldve.",                           mode: "manual", phase: 2, icon: Wallet,     actionLabel: "Előleg email küldése",   emailTemplate: "deposit_request" },
+  { key: "deposit_paid",         title: "Előleg befizetve",           desc: "Az előleg összege beérkezett.",                                  mode: "auto",   phase: 2, icon: BadgeCheck },
+  { key: "docs_verify",          title: "Dokumentumok ellenőrizve",   desc: "Útlevél, vízum, biztosítás rendben.",                            mode: "manual", phase: 2, icon: ShieldCheck, actionLabel: "Megjelölés rendben" },
+  { key: "full_payment_request", title: "Végösszeg bekérve",          desc: "Végső fizetési emlékeztető elküldve.",                           mode: "manual", phase: 2, icon: CreditCard,  actionLabel: "Emlékeztető küldése",    emailTemplate: "reminder" },
+  { key: "full_paid",            title: "Végösszeg befizetve",        desc: "A teljes összeg beérkezett.",                                    mode: "auto",   phase: 2, icon: BadgeCheck },
+  { key: "pre_trip_send",        title: "Utazás előtti tájékoztató",  desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",        mode: "manual", phase: 3, icon: MapPin,     actionLabel: "Tájékoztató küldése",    emailTemplate: "pre_trip" },
+  { key: "trip_started",         title: "Utazás megkezdve",           desc: "Az utazócsoport elindult.",                                      mode: "auto",   phase: 4, icon: Plane },
+  { key: "trip_completed",       title: "Utazás befejezve",           desc: "Az utazás sikeresen véget ért.",                                 mode: "auto",   phase: 4, icon: CheckCircle2 },
+  { key: "followup_sent",        title: "Visszajelzés kérve",         desc: "Köszönő email és értékelési kérés elküldve.",                    mode: "manual", phase: 4, icon: Star,       actionLabel: "Köszönő email küldése",  emailTemplate: "followup" },
 ];
 
 // ─── Phase definitions ─────────────────────────────────────────────────────────
 
 const PHASES = [
   { id: 1 as const, label: "Fogadás",     dotColor: "bg-blue-500",   textColor: "text-blue-700",   bgColor: "bg-blue-50",   borderColor: "border-blue-400"   },
-  { id: 2 as const, label: "Szerződés",   dotColor: "bg-violet-500", textColor: "text-violet-700", bgColor: "bg-violet-50", borderColor: "border-violet-400" },
-  { id: 3 as const, label: "Fizetés",     dotColor: "bg-amber-500",  textColor: "text-amber-700",  bgColor: "bg-amber-50",  borderColor: "border-amber-400"  },
-  { id: 4 as const, label: "Előkészítés", dotColor: "bg-orange-500", textColor: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-400" },
-  { id: 5 as const, label: "Utazás",      dotColor: "bg-green-500",  textColor: "text-green-700",  bgColor: "bg-green-50",  borderColor: "border-green-400"  },
+  { id: 2 as const, label: "Fizetés",     dotColor: "bg-amber-500",  textColor: "text-amber-700",  bgColor: "bg-amber-50",  borderColor: "border-amber-400"  },
+  { id: 3 as const, label: "Előkészítés", dotColor: "bg-orange-500", textColor: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-400" },
+  { id: 4 as const, label: "Utazás",      dotColor: "bg-green-500",  textColor: "text-green-700",  bgColor: "bg-green-50",  borderColor: "border-green-400"  },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,146 +90,6 @@ function triggerLabel(t: string | null | undefined) {
   if (t === "auto")   return "automatikusan";
   if (t === "client") return "ügyfél által";
   return "admin";
-}
-
-// ─── Contract Send Dialog ──────────────────────────────────────────────────────
-
-interface ContractDialogProps {
-  open: boolean;
-  bookingId: string;
-  clientEmail: string | null;
-  onClose: () => void;
-  onSent: (contract: BookingContract) => void;
-}
-
-function ContractSendDialog({ open, bookingId, clientEmail, onClose, onSent }: ContractDialogProps) {
-  const [docType, setDocType] = useState<"travel_contract" | "health_declaration" | "photo_consent">("travel_contract");
-  const [sendEmail, setSendEmail] = useState(true);
-  const [expireDays, setExpireDays] = useState(14);
-  const [loading, setLoading] = useState(false);
-
-  async function handleSend() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/contracts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking_id: bookingId, document_type: docType, send_email: sendEmail && !!clientEmail, expires_days: expireDays }),
-      });
-      const data = await res.json() as { contract?: BookingContract; sign_url?: string; error?: string };
-      if (!res.ok) { toast.error(data.error ?? "Hiba a küldés során"); }
-      else {
-        toast.success(sendEmail && clientEmail ? "Nyilatkozat elküldve emailben ✓" : "Link generálva ✓");
-        onSent(data.contract!);
-        onClose();
-      }
-    } catch { toast.error("Hálózati hiba"); }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSignature className="h-5 w-5 text-violet-600" />
-            Nyilatkozat küldése
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-700">Dokumentum típusa</label>
-            <Select value={docType} onValueChange={(v) => setDocType(v as typeof docType)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="travel_contract">Utazási szerződés és nyilatkozat</SelectItem>
-                <SelectItem value="health_declaration">Egészségügyi nyilatkozat</SelectItem>
-                <SelectItem value="photo_consent">Fényképezési hozzájárulás</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-700">Link érvényessége</label>
-            <Select value={String(expireDays)} onValueChange={(v) => setExpireDays(Number(v))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">7 nap</SelectItem>
-                <SelectItem value="14">14 nap (ajánlott)</SelectItem>
-                <SelectItem value="30">30 nap</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={sendEmail && !!clientEmail} disabled={!clientEmail}
-              onChange={(e) => setSendEmail(e.target.checked)}
-              className="h-4 w-4 rounded border-zinc-300 text-blue-600" />
-            <span className="text-sm text-zinc-700">
-              {clientEmail ? `Email küldése: ${clientEmail}` : "Nincs email-cím — csak link"}
-            </span>
-          </label>
-        </div>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Mégse</Button>
-          <Button onClick={() => void handleSend()} disabled={loading} className="bg-violet-600 hover:bg-violet-700">
-            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Küldés…</> : <><Send className="mr-2 h-4 w-4" />Küldés</>}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Contract Preview Dialog ───────────────────────────────────────────────────
-
-function ContractPreviewDialog({ contract, open, onClose }: {
-  contract: BookingContract | null; open: boolean; onClose: () => void;
-}) {
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
-  if (!contract) return null;
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5 text-zinc-500" />
-            {contract.document_title}
-            <Badge
-              variant={contract.status === "signed" ? "success" : contract.status === "expired" ? "destructive" : "info"}
-              className="ml-2 rounded-full text-[10px]"
-            >
-              {contract.status === "signed" ? "Aláírva" : contract.status === "expired" ? "Lejárt" : "Aktív"}
-            </Badge>
-          </DialogTitle>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto">
-          <pre className="text-xs text-zinc-700 font-mono whitespace-pre-wrap bg-zinc-50 rounded-md p-4 leading-relaxed border border-zinc-200">
-            {contract.document_body}
-          </pre>
-        </div>
-        {contract.signed_name && (
-          <div className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
-            ✓ Aláírta: <strong>{contract.signed_name}</strong>
-            {contract.signed_at && ` · ${fmtDateTime(contract.signed_at)}`}
-            {contract.signed_ip && <span className="text-green-600 ml-1">· IP: {contract.signed_ip}</span>}
-          </div>
-        )}
-        <DialogFooter className="mt-3 gap-2">
-          <Button variant="outline" size="sm" onClick={() => {
-            void navigator.clipboard.writeText(`${appUrl}/sign/${contract.token}`);
-            toast.success("Link másolva");
-          }}>
-            <Copy className="mr-2 h-3.5 w-3.5" />Link másolása
-          </Button>
-          <a href={`${appUrl}/sign/${contract.token}`} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" size="sm">
-              <ExternalLink className="mr-2 h-3.5 w-3.5" />Megnyitás
-            </Button>
-          </a>
-          <Button onClick={onClose}>Bezárás</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 // ─── Email Send Dialog ─────────────────────────────────────────────────────────
@@ -367,19 +221,16 @@ function PhaseBar({ isStepDone }: PhaseBarProps) {
 interface StepRowProps {
   def: StepDef;
   step: WorkflowStep | undefined;
-  contract: BookingContract | null;
   isDone: boolean;
   isActive: boolean;
   isLast: boolean;
   phaseColor: typeof PHASES[0];
   onAction: (def: StepDef) => void;
   onSkip: (key: WorkflowStepKey) => void;
-  onPreviewContract: () => void;
 }
 
-function StepRow({ def, step, contract, isDone, isActive, isLast, phaseColor, onAction, onSkip, onPreviewContract }: StepRowProps) {
+function StepRow({ def, step, isDone, isActive, isLast, phaseColor, onAction, onSkip }: StepRowProps) {
   const skipped = step?.status === "skipped";
-  const contractPending = def.key === "contract_send" && !!contract && contract.status === "pending";
   const Icon = def.icon;
 
   return (
@@ -391,7 +242,6 @@ function StepRow({ def, step, contract, isDone, isActive, isLast, phaseColor, on
           isDone    ? "border-green-400 bg-green-50  text-green-600"
           : skipped ? "border-zinc-200  bg-zinc-50   text-zinc-300"
           : isActive ? "border-blue-400 bg-blue-50 text-blue-600"
-          : contractPending ? cn(phaseColor.borderColor, phaseColor.bgColor, phaseColor.textColor)
           : "border-zinc-200 text-zinc-300"
         )}>
           {isActive && (
@@ -435,11 +285,6 @@ function StepRow({ def, step, contract, isDone, isActive, isLast, phaseColor, on
               ● Szükséges
             </Badge>
           )}
-          {contractPending && (
-            <Badge variant="info" className="text-[9px] px-1.5 py-0 rounded-full">
-              <Clock className="mr-1 h-2.5 w-2.5" />Vár aláírásra
-            </Badge>
-          )}
         </div>
 
         {/* Description */}
@@ -454,32 +299,6 @@ function StepRow({ def, step, contract, isDone, isActive, isLast, phaseColor, on
             <span className="text-zinc-200">·</span>
             <span className="text-zinc-300">{timeAgo(step.done_at)}</span>
           </p>
-        )}
-
-        {/* Contract detail chip */}
-        {def.key === "contract_send" && contract && (
-          <div className="mb-2 inline-flex flex-wrap items-center gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-1.5 text-xs">
-            <span className="text-zinc-500 font-medium">{contract.document_title}</span>
-            <span className={cn(
-              "font-semibold",
-              contract.status === "signed" ? "text-green-600"
-                : contract.status === "expired" ? "text-red-500"
-                : "text-blue-600"
-            )}>
-              {contract.status === "signed" ? "✓ Aláírva"
-                : contract.status === "expired" ? "⚠ Lejárt"
-                : "→ Vár aláírásra"}
-            </span>
-            {contract.signed_name && (
-              <span className="text-green-700">({contract.signed_name})</span>
-            )}
-            <button
-              onClick={onPreviewContract}
-              className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium transition-colors"
-            >
-              <Eye className="h-3 w-3" />Megtekintés
-            </button>
-          </div>
         )}
 
         {/* Action buttons */}
@@ -537,12 +356,9 @@ export function WorkflowTab({
 }: WorkflowTabProps) {
   const supabase = createClient();
 
-  const [steps,          setSteps]          = useState<WorkflowStep[]>([]);
-  const [contract,       setContract]       = useState<BookingContract | null>(null);
-  const [loading,        setLoading]        = useState(true);
-  const [contractDialog, setContractDialog] = useState(false);
-  const [previewDialog,  setPreviewDialog]  = useState(false);
-  const [emailDialog,    setEmailDialog]    = useState<StepDef | null>(null);
+  const [steps,       setSteps]       = useState<WorkflowStep[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [emailDialog, setEmailDialog] = useState<StepDef | null>(null);
   const initRef = useRef(false);
 
   const now = new Date();
@@ -554,12 +370,11 @@ export function WorkflowTab({
     if (key === "inquiry_received") return true;
     if (key === "deposit_paid"   && ["deposit_paid","fully_paid","completed"].includes(bookingStatus)) return true;
     if (key === "full_paid"      && ["fully_paid","completed"].includes(bookingStatus)) return true;
-    if (key === "contract_sign"  && contract?.status === "signed") return true;
     if (key === "trip_started"   && tripDepartureDate && new Date(tripDepartureDate) < now) return true;
     if (key === "trip_completed" && tripReturnDate    && new Date(tripReturnDate)    < now) return true;
     return false;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steps, contract, bookingStatus, tripDepartureDate, tripReturnDate]);
+  }, [steps, bookingStatus, tripDepartureDate, tripReturnDate]);
 
   // First pending manual step → "active" (pulsing)
   const activeStepKey: WorkflowStepKey | null = ALL_STEPS.find((def) =>
@@ -570,12 +385,9 @@ export function WorkflowTab({
 
   // ── Load ──────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
-    const [{ data: stepsData }, { data: contractData }] = await Promise.all([
-      supabase.from("workflow_steps").select("*").eq("booking_id", bookingId).order("created_at"),
-      supabase.from("booking_contracts").select("*").eq("booking_id", bookingId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
+    const { data: stepsData } = await supabase
+      .from("workflow_steps").select("*").eq("booking_id", bookingId).order("created_at");
     setSteps((stepsData ?? []) as WorkflowStep[]);
-    setContract((contractData as BookingContract) ?? null);
     setLoading(false);
   }, [bookingId]);
 
@@ -616,17 +428,15 @@ export function WorkflowTab({
   // ── Real-time subscription ────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase.channel(`wf:${bookingId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "workflow_steps",    filter: `booking_id=eq.${bookingId}` }, () => void load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "booking_contracts", filter: `booking_id=eq.${bookingId}` }, () => void load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "workflow_steps", filter: `booking_id=eq.${bookingId}` }, () => void load())
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [bookingId, load]);
 
   // ── Handlers ─────────────────────────────────────────────────────────
   function handleAction(def: StepDef) {
-    if (def.key === "contract_send") { setContractDialog(true); return; }
-    if (def.key === "docs_verify")   { void markDone(def.key); return; }
-    if (def.emailTemplate)           { setEmailDialog(def); return; }
+    if (def.key === "docs_verify") { void markDone(def.key); return; }
+    if (def.emailTemplate)         { setEmailDialog(def); return; }
   }
 
   async function markDone(key: WorkflowStepKey, triggeredBy = "admin") {
@@ -645,11 +455,6 @@ export function WorkflowTab({
     }, { onConflict: "booking_id,step_key" });
     toast.info("Lépés kihagyva");
     void load();
-  }
-
-  function handleContractSent(newContract: BookingContract) {
-    setContract(newContract);
-    void markDone("contract_send", "admin");
   }
 
   function handleEmailSent(key: WorkflowStepKey) {
@@ -707,32 +512,18 @@ export function WorkflowTab({
               key={def.key}
               def={def}
               step={steps.find((s) => s.step_key === def.key)}
-              contract={def.key === "contract_send" || def.key === "contract_sign" ? contract : null}
               isDone={isStepDone(def.key)}
               isActive={def.key === activeStepKey}
               isLast={idx === ALL_STEPS.length - 1}
               phaseColor={phase}
               onAction={handleAction}
               onSkip={handleSkip}
-              onPreviewContract={() => setPreviewDialog(true)}
             />
           );
         })}
       </div>
 
       {/* Dialogs */}
-      <ContractSendDialog
-        open={contractDialog}
-        bookingId={bookingId}
-        clientEmail={clientEmail}
-        onClose={() => setContractDialog(false)}
-        onSent={handleContractSent}
-      />
-      <ContractPreviewDialog
-        contract={contract}
-        open={previewDialog}
-        onClose={() => setPreviewDialog(false)}
-      />
       <EmailSendDialog
         open={!!emailDialog}
         stepDef={emailDialog}
