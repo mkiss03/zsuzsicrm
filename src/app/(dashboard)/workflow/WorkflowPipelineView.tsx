@@ -1039,6 +1039,8 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
             );
           })}
         </div>
+      </div>
+
       {/* Financial breakdown */}
       {details && (
         <div className="mx-6 rounded-xl border border-zinc-200 bg-white p-4">
