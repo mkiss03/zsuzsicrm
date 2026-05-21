@@ -130,11 +130,6 @@ function pageLabel(n: number, t: number, lang: InvoiceLanguage): string {
   return lang === "de" ? DE.page(n, t) : HU.page(n, t);
 }
 
-function thanksLabel(lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.thanks}  ·  ${DE.thanks}`;
-  return lang === "de" ? DE.thanks : HU.thanks;
-}
-
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function fmtDate(d: string | null | undefined): string {
@@ -633,10 +628,6 @@ export function InvoicePDF({
   currency = "EUR",
 }: InvoicePDFProps) {
   const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-Göncz Zsuzsanna, Utazó fotós";
-  const street      = settings["agency_street"]  || "";
-  const zip         = settings["agency_zip"]     || "";
-  const city        = settings["agency_city"]    || "";
-  const country     = settings["agency_country"] || "";
   const email       = settings["agency_email"]   || "";
   const phone       = settings["agency_phone"]   || "";
   const iban        = settings["iban"]           || "";
