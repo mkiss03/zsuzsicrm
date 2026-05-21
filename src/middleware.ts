@@ -16,6 +16,8 @@ const PUBLIC_PREFIXES = [
   "/api/cron",
   "/sign",          // public e-signature pages (clients open these without a session)
   "/api/sign",      // public sign API (GET contract info + POST signature submission)
+  "/api/trips/public",  // public trip list for website booking form
+  "/api/trips/sync",    // server-to-server webhook + bulk import (guarded by TRIPS_SYNC_SECRET)
 ];
 
 /** Static-asset patterns excluded from the matcher below — already listed there,
