@@ -873,13 +873,6 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link href={`/bookings/${bookingRow.id}/edit`}>
-              <Button variant="outline" size="sm">
-                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />Szerkesztés
-              </Button>
-            </Link>
-          </div>
         </div>
       </div>
 
