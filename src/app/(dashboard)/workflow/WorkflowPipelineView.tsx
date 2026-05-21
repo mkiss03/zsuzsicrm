@@ -6,13 +6,11 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
 import { toast } from "sonner";
 import {
-  Send, FileSignature, Wallet, ShieldCheck, CreditCard,
-  Mail, Loader2, Copy, ExternalLink, Inbox,
+  Send, Wallet, ShieldCheck, CreditCard,
+  Mail, Loader2, Inbox,
   MapPin, Plane, Star, BadgeCheck, ArrowRight,
-  Search, X, Check, ChevronRight, Users, AlertCircle,
-  CheckCircle2, SkipForward, Camera, FileText, HeartPulse,
-  AlertTriangle, Clock, CircleCheck, ChevronDown, ChevronUp, PenLine,
-  TrendingDown,
+  Search, X, Check, ChevronRight, AlertCircle,
+  CheckCircle2, SkipForward,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -22,7 +20,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { PaymentHistory } from "@/components/bookings/PaymentHistory";
 import { type PaymentResult } from "@/hooks/useBookings";
 import type {
-  BookingContract, WorkflowStep, WorkflowStepKey, BookingStatus, Payment,
+  WorkflowStep, WorkflowStepKey, BookingStatus, Payment,
 } from "@/types";
 
 // ─── Step definitions ──────────────────────────────────────────────────────────
@@ -34,35 +32,32 @@ interface StepDef {
   desc: string;
   icon: React.ElementType;
   mode: "auto" | "manual";
-  phase: 1 | 2 | 3 | 4 | 5;
+  phase: 1 | 2 | 3 | 4;
   actionLabel?: string;
   emailTemplate?: string;
 }
 
 const ALL_STEPS: StepDef[] = [
-  { key: "inquiry_received",     title: "Érdeklődés rögzítve",       shortTitle: "Érdeklődés",      desc: "A foglalás beérkezett a rendszerbe.",                        mode: "auto",   phase: 1, icon: Inbox },
-  { key: "confirmation_sent",    title: "Visszaigazolás elküldve",    shortTitle: "Visszaigazolás",  desc: "Foglalási visszaigazolás elküldve az ügyfélnek.",             mode: "manual", phase: 1, icon: Mail,         actionLabel: "Visszaigazolás küldése",  emailTemplate: "booking_confirmation" },
-  { key: "contract_send",        title: "Nyilatkozat elküldve",       shortTitle: "Nyilatkozat",     desc: "Foglalási nyilatkozat(ok) elküldve aláírásra.",              mode: "manual", phase: 2, icon: Send,         actionLabel: "Nyilatkozatok küldése" },
-  { key: "contract_sign",        title: "Nyilatkozat aláírva",        shortTitle: "Aláírás",         desc: "Az ügyfél elektronikusan aláírta a nyilatkozatot.",          mode: "auto",   phase: 2, icon: FileSignature },
-  { key: "deposit_request",      title: "Előleg bekérve",             shortTitle: "Előleg kérés",    desc: "Előlegfizetési felszólítás elküldve.",                       mode: "manual", phase: 3, icon: Wallet,       actionLabel: "Előleg email küldése",    emailTemplate: "deposit_request" },
-  { key: "deposit_paid",         title: "Előleg befizetve",           shortTitle: "Előleg",          desc: "Az előleg összege beérkezett.",                              mode: "auto",   phase: 3, icon: BadgeCheck },
-  { key: "docs_verify",          title: "Dokumentumok ellenőrizve",   shortTitle: "Dok. ellenőrzés", desc: "Útlevél, vízum, biztosítás rendben.",                        mode: "manual", phase: 3, icon: ShieldCheck,  actionLabel: "Megjelölés rendben" },
-  { key: "full_payment_request", title: "Végösszeg bekérve",          shortTitle: "Végösszeg kérés", desc: "Végső fizetési emlékeztető elküldve.",                       mode: "manual", phase: 3, icon: CreditCard,   actionLabel: "Emlékeztető küldése",     emailTemplate: "reminder" },
-  { key: "full_paid",            title: "Végösszeg befizetve",        shortTitle: "Végösszeg",       desc: "A teljes összeg beérkezett.",                                mode: "auto",   phase: 3, icon: BadgeCheck },
-  { key: "pre_trip_send",        title: "Utazás előtti tájékoztató",  shortTitle: "Tájékoztató",     desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",   mode: "manual", phase: 4, icon: MapPin,       actionLabel: "Tájékoztató küldése",     emailTemplate: "pre_trip" },
-  { key: "trip_started",         title: "Utazás megkezdve",           shortTitle: "Indulás",         desc: "Az utazócsoport elindult.",                                  mode: "auto",   phase: 5, icon: Plane },
-  { key: "trip_completed",       title: "Utazás befejezve",           shortTitle: "Visszaérkezés",   desc: "Az utazás sikeresen véget ért.",                             mode: "auto",   phase: 5, icon: CheckCircle2 },
-  { key: "followup_sent",        title: "Visszajelzés kérve",         shortTitle: "Follow-up",       desc: "Köszönő email és értékelési kérés elküldve.",                mode: "manual", phase: 5, icon: Star,         actionLabel: "Köszönő email küldése",   emailTemplate: "post_trip" },
+  { key: "inquiry_received",     title: "Érdeklődés rögzítve",       shortTitle: "Érdeklődés",      desc: "A foglalás beérkezett a rendszerbe.",                              mode: "auto",   phase: 1, icon: Inbox },
+  { key: "confirmation_sent",    title: "Visszaigazolás elküldve",    shortTitle: "Visszaigazolás",  desc: "Visszaigazolás elküldve — minden tudnivaló és file csatolva.",     mode: "manual", phase: 1, icon: Mail,       actionLabel: "Visszaigazolás küldése", emailTemplate: "booking_confirmation" },
+  { key: "deposit_request",      title: "Előleg bekérve",             shortTitle: "Előleg kérés",    desc: "Előlegfizetési felszólítás elküldve.",                             mode: "manual", phase: 2, icon: Wallet,     actionLabel: "Előleg email küldése",   emailTemplate: "deposit_request" },
+  { key: "deposit_paid",         title: "Előleg befizetve",           shortTitle: "Előleg",          desc: "Az előleg összege beérkezett.",                                    mode: "auto",   phase: 2, icon: BadgeCheck },
+  { key: "docs_verify",          title: "Dokumentumok ellenőrizve",   shortTitle: "Dok. ellenőrzés", desc: "Útlevél, vízum, biztosítás rendben.",                              mode: "manual", phase: 2, icon: ShieldCheck, actionLabel: "Megjelölés rendben" },
+  { key: "full_payment_request", title: "Végösszeg bekérve",          shortTitle: "Végösszeg kérés", desc: "Végső fizetési emlékeztető elküldve.",                             mode: "manual", phase: 2, icon: CreditCard,  actionLabel: "Emlékeztető küldése",   emailTemplate: "reminder" },
+  { key: "full_paid",            title: "Végösszeg befizetve",        shortTitle: "Végösszeg",       desc: "A teljes összeg beérkezett.",                                      mode: "auto",   phase: 2, icon: BadgeCheck },
+  { key: "pre_trip_send",        title: "Utazás előtti tájékoztató",  shortTitle: "Tájékoztató",     desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",         mode: "manual", phase: 3, icon: MapPin,     actionLabel: "Tájékoztató küldése",   emailTemplate: "pre_trip" },
+  { key: "trip_started",         title: "Utazás megkezdve",           shortTitle: "Indulás",         desc: "Az utazócsoport elindult.",                                        mode: "auto",   phase: 4, icon: Plane },
+  { key: "trip_completed",       title: "Utazás befejezve",           shortTitle: "Visszaérkezés",   desc: "Az utazás sikeresen véget ért.",                                   mode: "auto",   phase: 4, icon: CheckCircle2 },
+  { key: "followup_sent",        title: "Visszajelzés kérve",         shortTitle: "Follow-up",       desc: "Köszönő email és értékelési kérés elküldve.",                      mode: "manual", phase: 4, icon: Star,       actionLabel: "Köszönő email küldése",  emailTemplate: "post_trip" },
 ];
 
 // ─── Phase definitions ─────────────────────────────────────────────────────────
 
 const PHASES = [
   { id: 1 as const, label: "Fogadás",     dot: "bg-slate-400",  text: "text-slate-600",  bg: "bg-slate-50",  border: "border-slate-200",  line: "bg-slate-300"  },
-  { id: 2 as const, label: "Szerződés",   dot: "bg-blue-500",   text: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-200",   line: "bg-blue-400"   },
-  { id: 3 as const, label: "Fizetés",     dot: "bg-blue-600",   text: "text-blue-800",   bg: "bg-blue-50",   border: "border-blue-200",   line: "bg-blue-500"   },
-  { id: 4 as const, label: "Előkészítés", dot: "bg-indigo-500", text: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200", line: "bg-indigo-400" },
-  { id: 5 as const, label: "Utazás",      dot: "bg-emerald-500",text: "text-emerald-700",bg: "bg-emerald-50",border: "border-emerald-200",line: "bg-emerald-400"},
+  { id: 2 as const, label: "Fizetés",     dot: "bg-blue-600",   text: "text-blue-800",   bg: "bg-blue-50",   border: "border-blue-200",   line: "bg-blue-500"   },
+  { id: 3 as const, label: "Előkészítés", dot: "bg-indigo-500", text: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200", line: "bg-indigo-400" },
+  { id: 4 as const, label: "Utazás",      dot: "bg-emerald-500",text: "text-emerald-700",bg: "bg-emerald-50",border: "border-emerald-200",line: "bg-emerald-400"},
 ];
 
 function phaseOf(key: WorkflowStepKey) {
@@ -271,296 +266,6 @@ function AnimatedTimeline({ isStepDone, activeStepKey, expandedKey, onStepClick 
   );
 }
 
-// ─── Contract multi-send panel ─────────────────────────────────────────────────
-
-const DOC_TYPES: { value: string; label: string; Icon: React.ElementType }[] = [
-  { value: "travel_contract",    label: "Utazási szerződés és nyilatkozat", Icon: FileText     },
-  { value: "health_declaration", label: "Egészségügyi nyilatkozat",         Icon: HeartPulse   },
-  { value: "photo_consent",      label: "Fényképezési hozzájárulás",        Icon: Camera       },
-];
-
-function ContractMultiPanel({ bookingId, clientEmail, existingContracts, onDone, onClose }: {
-  bookingId: string;
-  clientEmail: string | null;
-  existingContracts: BookingContract[];
-  onDone: () => void;
-  onClose: () => void;
-}) {
-  const [selected, setSelected]         = useState<string[]>(["travel_contract"]);
-  const [expireDays, setExpireDays]     = useState(14);
-  const [sendEmail, setSendEmail]       = useState(true);
-  const [sending, setSending]           = useState(false);
-  const [progress, setProgress]         = useState({ done: 0, total: 0 });
-  const [showDocEditor, setShowDocEditor] = useState(false);
-  const [docBodies, setDocBodies]       = useState<Record<string, string>>({});
-  const [loadingPreview, setLoadingPreview] = useState<string | null>(null);
-
-  const sentTypes = new Set(existingContracts.map(c => c.document_type));
-
-  async function loadDocPreview(docType: string) {
-    if (docBodies[docType] !== undefined) return; // already loaded
-    setLoadingPreview(docType);
-    try {
-      const res = await fetch(`/api/contracts?booking_id=${bookingId}&document_type=${docType}`);
-      if (res.ok) {
-        const data = await res.json() as { body: string };
-        setDocBodies(prev => ({ ...prev, [docType]: data.body }));
-      } else {
-        toast.error("Nem sikerült betölteni a sablont");
-      }
-    } catch {
-      toast.error("Hálózati hiba");
-    } finally {
-      setLoadingPreview(null);
-    }
-  }
-
-  async function handleToggleDocEditor() {
-    const next = !showDocEditor;
-    setShowDocEditor(next);
-    if (next) {
-      // Pre-load all selected (not-yet-sent) document types
-      for (const docType of selected.filter(t => !sentTypes.has(t))) {
-        void loadDocPreview(docType);
-      }
-    }
-  }
-
-  async function handleSend() {
-    const toSend = selected.filter(t => !sentTypes.has(t));
-    if (toSend.length === 0) { toast.error("Minden kiválasztott dokumentum már el lett küldve"); return; }
-    setSending(true);
-    setProgress({ done: 0, total: toSend.length });
-
-    for (let i = 0; i < toSend.length; i++) {
-      try {
-        const payload: Record<string, unknown> = {
-          booking_id: bookingId, document_type: toSend[i],
-          send_email: sendEmail && !!clientEmail, expires_days: expireDays,
-        };
-        if (docBodies[toSend[i]!]) {
-          payload.document_body = docBodies[toSend[i]!];
-        }
-        const res = await fetch("/api/contracts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) { const d = await res.json() as { error?: string }; toast.error(d.error ?? "Hiba"); }
-        setProgress(p => ({ ...p, done: p.done + 1 }));
-        await new Promise(r => setTimeout(r, 350));
-      } catch { toast.error(`Hiba: ${toSend[i]}`); }
-    }
-
-    setSending(false);
-    toast.success(`${toSend.length} dokumentum elküldve ✓`);
-    onDone();
-  }
-
-  return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-            <FileSignature className="h-4 w-4 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-800">Nyilatkozatok küldése</h3>
-            <p className="text-xs text-zinc-400">Jelöld be a küldendő dokumentumokat</p>
-          </div>
-        </div>
-        <button onClick={onClose} className="text-zinc-300 hover:text-zinc-500 transition-colors">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Doc type checkboxes */}
-      <div className="space-y-2 mb-4">
-        {DOC_TYPES.map(dt => {
-          const alreadySent = sentTypes.has(dt.value);
-          const isSelected  = selected.includes(dt.value);
-          return (
-            <label key={dt.value} className={cn(
-              "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-              alreadySent ? "border-green-200 bg-green-50 cursor-default"
-              : isSelected ? "border-violet-300 bg-white shadow-sm"
-              : "border-zinc-200 bg-white hover:border-zinc-300"
-            )}>
-              <input
-                type="checkbox"
-                checked={alreadySent || isSelected}
-                disabled={alreadySent}
-                onChange={e => {
-                  if (alreadySent) return;
-                  setSelected(prev =>
-                    e.target.checked ? [...prev, dt.value] : prev.filter(v => v !== dt.value)
-                  );
-                }}
-                className="h-4 w-4 rounded border-blue-300 text-blue-600"
-              />
-              <dt.Icon className="h-4 w-4 shrink-0 text-zinc-400" />
-              <span className="text-sm font-medium text-zinc-700 flex-1">{dt.label}</span>
-              {alreadySent && <Badge variant="success" className="text-[10px]">✓ Elküldve</Badge>}
-            </label>
-          );
-        })}
-      </div>
-
-      {/* Already sent contracts */}
-      {existingContracts.length > 0 && (
-        <div className="mb-4 space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Küldött dokumentumok</p>
-          {existingContracts.map(c => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg bg-zinc-50 border border-zinc-100 px-3 py-2 text-xs">
-              <span className="text-zinc-600 font-medium truncate max-w-[160px]">{c.document_title}</span>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge
-                  variant={c.status === "signed" ? "success" : c.status === "expired" ? "destructive" : "info"}
-                  className="text-[9px] flex items-center gap-1"
-                >
-                  {c.status === "signed" ? <><CircleCheck className="h-2.5 w-2.5" />Aláírva</> : c.status === "expired" ? <><AlertTriangle className="h-2.5 w-2.5" />Lejárt</> : <><Clock className="h-2.5 w-2.5" />Vár</>}
-                </Badge>
-                <button
-                  onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/sign/${c.token}`); toast.success("Link másolva"); }}
-                  className="text-zinc-400 hover:text-zinc-600 transition-colors" title="Link másolása"
-                ><Copy className="h-3 w-3" /></button>
-                <a href={`/sign/${c.token}`} target="_blank" rel="noopener noreferrer"
-                  className="text-blue-500 hover:text-blue-700 transition-colors" title="Megnyitás">
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Document editor toggle */}
-      {selected.filter(t => !sentTypes.has(t)).length > 0 && (
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => void handleToggleDocEditor()}
-            className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-100 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <PenLine className="h-3.5 w-3.5 text-zinc-400" />
-              Dokumentum szövegének szerkesztése
-            </span>
-            {showDocEditor ? <ChevronUp className="h-3.5 w-3.5 text-zinc-400" /> : <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />}
-          </button>
-
-          {showDocEditor && (
-            <div className="mt-2 space-y-3">
-              {selected.filter(t => !sentTypes.has(t)).map(docType => {
-                const dt   = DOC_TYPES.find(d => d.value === docType);
-                const body = docBodies[docType];
-                const isLoading = loadingPreview === docType;
-                return (
-                  <div key={docType} className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
-                    <div className="flex items-center justify-between bg-zinc-50 border-b border-zinc-100 px-3 py-2">
-                      <span className="text-xs font-medium text-zinc-600 flex items-center gap-1.5">
-                        {dt && <dt.Icon className="h-3.5 w-3.5 text-zinc-400" />}
-                        {dt?.label ?? docType}
-                      </span>
-                      {!body && !isLoading && (
-                        <button
-                          type="button"
-                          onClick={() => void loadDocPreview(docType)}
-                          className="text-[11px] text-blue-600 hover:text-blue-700 transition-colors"
-                        >
-                          Sablon betöltése
-                        </button>
-                      )}
-                      {isLoading && <Loader2 className="h-3 w-3 animate-spin text-zinc-400" />}
-                    </div>
-                    {body !== undefined && (
-                      <textarea
-                        value={body}
-                        onChange={e => setDocBodies(prev => ({ ...prev, [docType]: e.target.value }))}
-                        rows={10}
-                        className="w-full resize-y px-3 py-2 text-[11px] font-mono text-zinc-700 bg-white
-                                   focus:outline-none focus:ring-1 focus:ring-blue-400 border-0"
-                        placeholder="A dokumentum szövege…"
-                      />
-                    )}
-                    {body === undefined && !isLoading && (
-                      <p className="px-3 py-3 text-xs text-zinc-400 italic">
-                        Kattintson a Sablon betöltése gombra az alapértelmezett szöveg szerkesztéséhez.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-              <p className="text-[11px] text-zinc-400 flex items-start gap-1.5">
-                <FileText className="h-3 w-3 shrink-0 mt-0.5" />
-                A szerkesztett szöveg kerül a dokumentumba. Az eredeti sablon mindig visszatölthető.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Options */}
-      <div className="flex flex-wrap items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-500">Érvényesség:</span>
-          <select
-            value={expireDays}
-            onChange={e => setExpireDays(Number(e.target.value))}
-            className="text-xs border border-zinc-200 rounded-md px-2 py-1 bg-white"
-          >
-            <option value={7}>7 nap</option>
-            <option value={14}>14 nap</option>
-            <option value={30}>30 nap</option>
-          </select>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={sendEmail && !!clientEmail}
-            disabled={!clientEmail}
-            onChange={e => setSendEmail(e.target.checked)}
-            className="h-4 w-4 rounded border-zinc-300 text-blue-600"
-          />
-          <span className={cn("text-xs", clientEmail ? "text-zinc-600" : "text-zinc-400")}>
-            {clientEmail ? `Email: ${clientEmail}` : "Nincs email-cím"}
-          </span>
-        </label>
-      </div>
-
-      {/* Send progress */}
-      {sending && progress.total > 0 && (
-        <div className="mb-4">
-          <div className="flex justify-between text-xs text-zinc-500 mb-1">
-            <span>Küldés folyamatban…</span>
-            <span>{progress.done}/{progress.total}</span>
-          </div>
-          <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
-            <div
-              className="h-full bg-violet-500 rounded-full transition-all duration-500"
-              style={{ width: `${(progress.done / progress.total) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={onClose}>Mégse</Button>
-        <Button
-          size="sm"
-          onClick={() => void handleSend()}
-          disabled={sending || selected.filter(t => !sentTypes.has(t)).length === 0}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {sending
-            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Küldés…</>
-            : <><Send className="mr-2 h-4 w-4" />Küldés</>}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Email action panel ────────────────────────────────────────────────────────
 
 function EmailActionPanel({ def, bookingId, isDone, onSent, onClose }: {
@@ -699,7 +404,6 @@ function ManualActionPanel({ def, bookingId, isDone, isSkipped, onDone, onClose 
 function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
   const supabase         = createClient();
   const [steps,          setSteps]          = useState<WorkflowStep[]>([]);
-  const [contracts,      setContracts]      = useState<BookingContract[]>([]);
   const [payments,       setPayments]       = useState<Payment[]>([]);
   const [bookingStatus,  setBookingStatus]  = useState<BookingStatus>(bookingRow.status);
   const [details,        setDetails]        = useState<{
@@ -720,12 +424,11 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
     if (key === "inquiry_received") return true;
     if (key === "deposit_paid"   && ["deposit_paid","fully_paid","completed"].includes(bookingRow.status)) return true;
     if (key === "full_paid"      && ["fully_paid","completed"].includes(bookingRow.status)) return true;
-    if (key === "contract_sign"  && contracts.some(c => c.status === "signed")) return true;
     if (key === "trip_started"   && bookingRow.departure_date && new Date(bookingRow.departure_date) < now) return true;
     if (key === "trip_completed" && bookingRow.return_date    && new Date(bookingRow.return_date)    < now) return true;
     return false;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steps, contracts, bookingRow.status, bookingRow.departure_date, bookingRow.return_date]);
+  }, [steps, bookingRow.status, bookingRow.departure_date, bookingRow.return_date]);
 
   const activeStepKey: WorkflowStepKey | null = ALL_STEPS.find(def =>
     def.mode === "manual" && !isStepDone(def.key) &&
@@ -733,14 +436,12 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
   )?.key ?? null;
 
   const load = useCallback(async () => {
-    const [{ data: sd }, { data: cd }, { data: pd }, { data: bd }] = await Promise.all([
+    const [{ data: sd }, { data: pd }, { data: bd }] = await Promise.all([
       supabase.from("workflow_steps").select("*").eq("booking_id", bookingRow.id).order("created_at"),
-      supabase.from("booking_contracts").select("*").eq("booking_id", bookingRow.id).order("created_at"),
       supabase.from("payments").select("*").eq("booking_id", bookingRow.id).order("payment_date", { ascending: false }),
       supabase.from("bookings").select("base_amount, discount_amount, discount_percentage, deposit_amount, status").eq("id", bookingRow.id).single(),
     ]);
     setSteps((sd ?? []) as WorkflowStep[]);
-    setContracts((cd ?? []) as BookingContract[]);
     setPayments((pd ?? []) as Payment[]);
     if (bd) {
       setDetails(bd as { base_amount: number | null; discount_amount: number; discount_percentage: number; deposit_amount: number | null });
@@ -776,8 +477,6 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
     const ch = supabase.channel(`wf:center:${bookingRow.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "workflow_steps",
         filter: `booking_id=eq.${bookingRow.id}` }, () => void load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "booking_contracts",
-        filter: `booking_id=eq.${bookingRow.id}` }, () => void load())
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
   }, [bookingRow.id, load]);
@@ -790,17 +489,6 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
   }
 
   function renderPanel(def: StepDef) {
-    if (def.key === "contract_send") {
-      return (
-        <ContractMultiPanel
-          bookingId={bookingRow.id}
-          clientEmail={bookingRow.client_email}
-          existingContracts={contracts}
-          onDone={() => void load()}
-          onClose={() => setExpanded(null)}
-        />
-      );
-    }
     if (def.emailTemplate) {
       return (
         <EmailActionPanel
@@ -998,22 +686,6 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
                           <span className="mx-1 text-zinc-200">·</span>
                           {timeAgo(step.done_at)}
                         </p>
-                      )}
-                      {/* Contract status chips */}
-                      {def.key === "contract_send" && contracts.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {contracts.map(c => (
-                            <span key={c.id} className={cn(
-                              "inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium",
-                              c.status === "signed"  ? "bg-green-50  border-green-200  text-green-700"
-                              : c.status === "expired" ? "bg-red-50    border-red-200    text-red-600"
-                              :                          "bg-blue-50   border-blue-200   text-blue-600"
-                            )}>
-                              {c.status === "signed" ? <CircleCheck className="h-3 w-3" /> : c.status === "expired" ? <AlertTriangle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                              {c.document_title.replace(" és nyilatkozat", "").replace("Utazási s", "S")}
-                            </span>
-                          ))}
-                        </div>
                       )}
                     </div>
 

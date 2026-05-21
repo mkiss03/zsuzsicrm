@@ -64,8 +64,6 @@ export type WorkflowStepStatus = "pending" | "done" | "skipped" | "blocked";
 export type WorkflowStepKey =
   | "inquiry_received"
   | "confirmation_sent"
-  | "contract_send"
-  | "contract_sign"
   | "deposit_request"
   | "deposit_paid"
   | "docs_verify"
