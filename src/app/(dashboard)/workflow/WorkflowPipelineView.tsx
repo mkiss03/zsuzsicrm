@@ -18,8 +18,9 @@ import { createClient } from "@/lib/supabase/client";
 import { Button }        from "@/components/ui/button";
 import { Badge }         from "@/components/ui/badge";
 import { cn }            from "@/lib/utils";
+import { PaymentForm }   from "@/components/bookings/PaymentForm";
 import type {
-  BookingContract, WorkflowStep, WorkflowStepKey, BookingStatus,
+  BookingContract, WorkflowStep, WorkflowStepKey, BookingStatus, Payment,
 } from "@/types";
 
 // ─── Step definitions ──────────────────────────────────────────────────────────
@@ -694,11 +695,13 @@ function ManualActionPanel({ def, bookingId, isDone, isSkipped, onDone, onClose 
 // ─── Workflow detail (right panel) ────────────────────────────────────────────
 
 function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
-  const supabase   = createClient();
-  const [steps,     setSteps]     = useState<WorkflowStep[]>([]);
-  const [contracts, setContracts] = useState<BookingContract[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [expanded,  setExpanded]  = useState<WorkflowStepKey | null>(null);
+  const supabase         = createClient();
+  const [steps,          setSteps]          = useState<WorkflowStep[]>([]);
+  const [contracts,      setContracts]      = useState<BookingContract[]>([]);
+  const [payments,       setPayments]       = useState<Payment[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [expanded,       setExpanded]       = useState<WorkflowStepKey | null>(null);
+  const [showPayForm,    setShowPayForm]    = useState(false);
   const initRef     = useRef(false);
   const autoOpenRef = useRef(false);
 
@@ -722,12 +725,14 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
   )?.key ?? null;
 
   const load = useCallback(async () => {
-    const [{ data: sd }, { data: cd }] = await Promise.all([
+    const [{ data: sd }, { data: cd }, { data: pd }] = await Promise.all([
       supabase.from("workflow_steps").select("*").eq("booking_id", bookingRow.id).order("created_at"),
       supabase.from("booking_contracts").select("*").eq("booking_id", bookingRow.id).order("created_at"),
+      supabase.from("payments").select("*").eq("booking_id", bookingRow.id).order("payment_date", { ascending: false }),
     ]);
     setSteps((sd ?? []) as WorkflowStep[]);
     setContracts((cd ?? []) as BookingContract[]);
+    setPayments((pd ?? []) as Payment[]);
     setLoading(false);
   }, [bookingRow.id]);
 
@@ -855,11 +860,20 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
               )}
             </p>
           </div>
-          <Link href={`/bookings/${bookingRow.id}`}>
-            <Button variant="outline" size="sm" className="shrink-0">
-              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />Megnyitás
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => setShowPayForm(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <CreditCard className="mr-1.5 h-3.5 w-3.5" />Fizetés rögzítése
             </Button>
-          </Link>
+            <Link href={`/bookings/${bookingRow.id}`}>
+              <Button variant="outline" size="sm">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />Megnyitás
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -1020,6 +1034,27 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
           })}
         </div>
       </div>
+      {/* Payment form dialog — accessible directly from Workflow Center */}
+      {(() => {
+        const totalPaid = payments.reduce(
+          (s, p) => (p.type === "refund" ? s - p.amount : s + p.amount),
+          0,
+        );
+        const remaining = Math.max((bookingRow.final_amount ?? 0) - totalPaid, 0);
+        return (
+          <PaymentForm
+            open={showPayForm}
+            bookingId={bookingRow.id}
+            remainingBalance={remaining}
+            onSuccess={() => {
+              setShowPayForm(false);
+              void load();
+              toast.success("Fizetés sikeresen rögzítve");
+            }}
+            onCancel={() => setShowPayForm(false)}
+          />
+        );
+      })()}
     </div>
   );
 }
