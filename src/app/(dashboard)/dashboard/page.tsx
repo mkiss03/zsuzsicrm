@@ -10,7 +10,7 @@ import {
   IconChevronRight,
   IconChartBar,
   IconPlaneDeparture,
-  IconCurrencyEuro,
+  IconCalendar,
   IconCalendarStats,
   IconUsersGroup,
 } from "@tabler/icons-react";
@@ -21,13 +21,13 @@ import {
 import { hu } from "date-fns/locale";
 
 import { createClient } from "@/lib/supabase/server";
-import { MonthlyRevenueChart } from "@/components/dashboard/MonthlyRevenueChart";
+import { MonthlyBookingsChart, type MonthlyBookingRow } from "@/components/dashboard/MonthlyBookingsChart";
 import { DestinationsPieChart } from "@/components/dashboard/DestinationsPieChart";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TripStatus } from "@/types";
-import type { MonthlyRevenueRow, DestinationStat } from "@/hooks/useReports";
+import type { DestinationStat } from "@/hooks/useReports";
 
 export const metadata: Metadata = { title: "Irányítópult" };
 
@@ -37,10 +37,6 @@ const HU_MONTHS_SHORT = [
   "jan.", "feb.", "már.", "ápr.", "máj.", "jún.",
   "júl.", "aug.", "szep.", "okt.", "nov.", "dec.",
 ] as const;
-
-function fmtEur(n: number) {
-  return new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-}
 
 function trendPct(cur: number, prev: number): number | null {
   if (prev === 0) return null;
@@ -62,16 +58,12 @@ export default async function DashboardPage() {
   const supabase     = createClient();
   const today        = format(new Date(), "yyyy-MM-dd");
   const firstOfMonth = `${today.slice(0, 7)}-01`;
-  const firstOfPrev  = format(subMonths(new Date(firstOfMonth), 1), "yyyy-MM-01");
-  const endOfPrev    = format(new Date(new Date(firstOfMonth).getTime() - 1), "yyyy-MM-dd");
   const threeDays    = format(addDays(new Date(), 3), "yyyy-MM-dd");
   const sixtyDays    = format(addDays(new Date(), 60), "yyyy-MM-dd");
   const weekAgo      = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const yearStart    = format(subMonths(new Date(), 11), "yyyy-MM-01");
-  const todayEnd     = `${today}T23:59:59`;
 
   const [
-    { data: yearPays },
     { data: activeData },
     { count: totalClients },
     { count: newThisWeek },
@@ -84,8 +76,8 @@ export default async function DashboardPage() {
     { data: destBookings },
     { data: yearBookings },
   ] = await Promise.all([
-    supabase.from("payments").select("amount,type,payment_date").gte("payment_date", firstOfPrev).order("payment_date"),
     supabase.from("bookings").select("status").is("deleted_at", null).not("status", "in", '("completed","cancelled")'),
+
     supabase.from("clients").select("*", { count: "exact", head: true }).is("deleted_at", null),
     supabase.from("clients").select("*", { count: "exact", head: true }).is("deleted_at", null).gte("created_at", weekAgo),
     supabase.from("trips").select("id,name,departure_date,max_capacity,current_bookings")
@@ -109,15 +101,6 @@ export default async function DashboardPage() {
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
 
-  let cur = 0, prev = 0;
-  for (const p of yearPays ?? []) {
-    const d = p.payment_date.slice(0, 10);
-    const a = p.type === "refund" ? -(p.amount as number) : (p.amount as number);
-    if (d >= firstOfMonth) cur  += a;
-    else if (d >= firstOfPrev && d <= endOfPrev) prev += a;
-  }
-
-  const trend        = trendPct(cur, prev);
   const activeCount  = (activeData ?? []).length;
   const awaitingCount = (activeData ?? []).filter((b) => b.status === "booked" || b.status === "deposit_paid").length;
   const nextTrip     = (nextTripData ?? [])[0] as { id: string; name: string; departure_date: string; max_capacity: number; current_bookings: number } | undefined;
@@ -126,27 +109,28 @@ export default async function DashboardPage() {
 
   // ── Chart data ────────────────────────────────────────────────────────────
 
-  const revMap: Record<string, number> = {};
-  const bkgMap: Record<string, number> = {};
+  const bkgMap: Record<string, { label: string; count: number }> = {};
   for (let i = 11; i >= 0; i--) {
-    const k = format(subMonths(new Date(), i), "yyyy-M");
-    revMap[k] = 0; bkgMap[k] = 0;
-  }
-  for (const p of yearPays ?? []) {
-    const d = new Date(p.payment_date as string);
-    const k = `${d.getFullYear()}-${d.getMonth() + 1}`;
-    if (k in revMap) revMap[k]! += p.type === "refund" ? -(p.amount as number) : (p.amount as number);
+    const d = subMonths(new Date(), i);
+    const k = format(d, "yyyy-M");
+    bkgMap[k] = { label: HU_MONTHS_SHORT[d.getMonth()]!, count: 0 };
   }
   for (const b of yearBookings ?? []) {
     const d = new Date(b.created_at as string);
     const k = `${d.getFullYear()}-${d.getMonth() + 1}`;
-    if (k in bkgMap) bkgMap[k]!++;
+    if (k in bkgMap) bkgMap[k]!.count++;
   }
 
-  const chartData: MonthlyRevenueRow[] = Object.entries(revMap).map(([key, revenue]) => {
-    const m = parseInt(key.split("-")[1] ?? "1", 10);
-    return { month: m, monthLabel: HU_MONTHS_SHORT[m - 1]!, revenue: Math.round(revenue * 100) / 100, bookingCount: bkgMap[key] ?? 0 };
-  });
+  const bookingChartData: MonthlyBookingRow[] = Object.values(bkgMap).map((v) => ({
+    monthLabel: v.label,
+    count:      v.count,
+  }));
+
+  const curMonthKey      = format(new Date(), "yyyy-M");
+  const prevMonthKey     = format(subMonths(new Date(), 1), "yyyy-M");
+  const monthlyBkgCount  = bkgMap[curMonthKey]?.count ?? 0;
+  const prevBkgCount     = bkgMap[prevMonthKey]?.count ?? 0;
+  const bkgTrend         = trendPct(monthlyBkgCount, prevBkgCount);
 
   // ── Destinations ──────────────────────────────────────────────────────────
 
@@ -173,13 +157,13 @@ export default async function DashboardPage() {
       {/* ── Stats ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
-          label="Havi bevétel"
-          value={fmtEur(cur)}
-          sub={prev > 0 ? `Előző: ${fmtEur(prev)}` : "Nincs előző havi adat"}
-          trend={trend}
+          label="Havi foglalás"
+          value={monthlyBkgCount.toLocaleString("hu-HU")}
+          sub={prevBkgCount > 0 ? `Előző hó: ${prevBkgCount} foglalás` : "Nincs előző havi adat"}
+          trend={bkgTrend}
           accent="border-l-blue-500"
           iconBg="bg-blue-500/[0.08]"
-          icon={<IconCurrencyEuro size={20} stroke={1.5} className="text-blue-500" />}
+          icon={<IconCalendar size={20} stroke={1.5} className="text-blue-500" />}
         />
         <KpiCard
           label="Aktív foglalások"
@@ -234,13 +218,13 @@ export default async function DashboardPage() {
         <div className="lg:col-span-3 rounded-md border border-zinc-200 bg-white p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-[14px] font-semibold text-zinc-900">Havi bevétel</h3>
+              <h3 className="text-[14px] font-semibold text-zinc-900">Havi foglalások</h3>
               <p className="text-[12px] text-zinc-400 mt-0.5">Utolsó 12 hónap</p>
             </div>
-            <Link href="/reports" className="text-[12px] text-blue-600 hover:underline">Riportok →</Link>
+            <Link href="/bookings" className="text-[12px] text-blue-600 hover:underline">Foglalások →</Link>
           </div>
-          {chartData.some((d) => d.revenue > 0) ? (
-            <MonthlyRevenueChart data={chartData} />
+          {bookingChartData.some((d) => d.count > 0) ? (
+            <MonthlyBookingsChart data={bookingChartData} />
           ) : (
             <div className="flex h-[200px] flex-col items-center justify-center gap-2">
               <IconChartBar size={32} stroke={1} className="text-zinc-200" />
