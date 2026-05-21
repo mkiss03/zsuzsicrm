@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { paymentSchema, type PaymentFormValues } from "@/lib/validators/booking";
 import { useBookings, type PaymentResult } from "@/hooks/useBookings";
@@ -64,7 +65,7 @@ export function PaymentForm({
   onSuccess,
   onCancel,
 }: PaymentFormProps) {
-  const { addPayment, loading } = useBookings();
+  const { addPayment, loading, error } = useBookings();
 
   const {
     register,
@@ -111,6 +112,9 @@ export function PaymentForm({
     const result = await addPayment(bookingId, values);
     if (result) {
       onSuccess(result);
+    } else {
+      // Show the exact Supabase error so we can debug
+      toast.error(error ?? "Ismeretlen hiba a fizetés rögzítésekor");
     }
   }
 
