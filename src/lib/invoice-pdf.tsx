@@ -1,17 +1,18 @@
-/**
- * Invoice PDF — botanical / elegant style  (React-PDF)
+﻿/**
+ * Invoice PDF â€” botanical / elegant style  (React-PDF)
  *
  * Props:
  *   language : "hu" | "de" | "bilingual"   (default "hu")
  *   currency : "EUR" | "HUF"               (default "EUR")
  *
  * Design: warm beige palette, botanical leaf decorations,
- * matches the style used by UtazóFotós / Tuza-Göncz Zsuzsanna.
+ * matches the style used by UtazĂłFotĂłs / Tuza-GĂ¶ncz Zsuzsanna.
  */
 
 import React from "react";
 import {
   Document,
+  Font,
   Page,
   Text,
   View,
@@ -19,14 +20,24 @@ import {
   Svg,
   Path,
 } from "@react-pdf/renderer";
+
+// â”€â”€â”€ Font registration (Lato â€” full Latin Extended / Hungarian support) â”€â”€â”€â”€â”€â”€â”€â”€
+Font.register({
+  family: "Lato",
+  fonts: [
+    { src: "/fonts/Lato-Regular.ttf", fontWeight: 400 },
+    { src: "/fonts/Lato-Bold.ttf",    fontWeight: 700 },
+  ],
+});
+Font.registerHyphenationCallback((word) => [word]); // disable hyphenation
 import type { Invoice, Client, InvoiceItem } from "@/types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type InvoiceLanguage = "hu" | "de" | "bilingual";
 export type InvoiceCurrency = "EUR" | "HUF";
 
-// ─── Colour palette ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Colour palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const C = {
   white:       "#FFFFFF",
@@ -41,7 +52,7 @@ const C = {
   borderLight: "#EDE8E0",   // thin separators
 };
 
-// ─── Labels ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface LabelSet {
   title:        string;
@@ -68,26 +79,26 @@ interface LabelSet {
 }
 
 const HU: LabelSet = {
-  title:       "Számla részletező",
-  client:      "Megrendelő:",
-  date:        "Dátum:",
-  invNum:      "Számlaszám:",
-  dueDate:     "Fizetési határidő:",
-  serviceDate: "Teljesítés dátuma:",
-  colItem:     "TÉTEL",
-  colQty:      "MENNYISÉG",
-  colUnit:     "EGYSÉGÁR",
-  colValue:    "ÉRTÉK",
-  netTotal:    "Nettó összeg:",
-  tax:         "ÁFA",
+  title:       "SzĂˇmla rĂ©szletezĹ‘",
+  client:      "MegrendelĹ‘:",
+  date:        "DĂˇtum:",
+  invNum:      "SzĂˇmlaszĂˇm:",
+  dueDate:     "FizetĂ©si hatĂˇridĹ‘:",
+  serviceDate: "TeljesĂ­tĂ©s dĂˇtuma:",
+  colItem:     "TĂ‰TEL",
+  colQty:      "MENNYISĂ‰G",
+  colUnit:     "EGYSĂ‰GĂR",
+  colValue:    "Ă‰RTĂ‰K",
+  netTotal:    "NettĂł Ă¶sszeg:",
+  tax:         "ĂFA",
   total:       "TOTAL",
-  beneficiary: "KEDVEZMÉNYEZETT",
-  bankAcct:    "Bankszámlaszám:",
+  beneficiary: "KEDVEZMĂ‰NYEZETT",
+  bankAcct:    "BankszĂˇmlaszĂˇm:",
   iban:        "IBAN:",
   bic:         "BIC/SWIFT:",
-  payRef:      "Közlemény:",
-  notes:       "Megjegyzés",
-  thanks:      "Köszönjük a bizalmat!",
+  payRef:      "KĂ¶zlemĂ©ny:",
+  notes:       "MegjegyzĂ©s",
+  thanks:      "KĂ¶szĂ¶njĂĽk a bizalmat!",
   page:        (n, t) => `${n}. oldal / ${t}`,
 };
 
@@ -105,13 +116,13 @@ const DE: LabelSet = {
   netTotal:    "Nettobetrag:",
   tax:         "MwSt.",
   total:       "GESAMT",
-  beneficiary: "EMPFÄNGER",
+  beneficiary: "EMPFĂ„NGER",
   bankAcct:    "Bankkontonummer:",
   iban:        "IBAN:",
   bic:         "BIC/SWIFT:",
   payRef:      "Verwendungszweck:",
   notes:       "Hinweis",
-  thanks:      "Vielen Dank für Ihr Vertrauen!",
+  thanks:      "Vielen Dank fĂĽr Ihr Vertrauen!",
   page:        (n, t) => `Seite ${n} von ${t}`,
 };
 
@@ -121,26 +132,26 @@ function label(key: keyof Omit<LabelSet, "page">, lang: InvoiceLanguage): string
 }
 
 function titleLabel(lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.title}  ·  ${DE.title}`;
+  if (lang === "bilingual") return `${HU.title}  Â·  ${DE.title}`;
   return lang === "de" ? DE.title : HU.title;
 }
 
 function pageLabel(n: number, t: number, lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.page(n, t)}  ·  ${DE.page(n, t)}`;
+  if (lang === "bilingual") return `${HU.page(n, t)}  Â·  ${DE.page(n, t)}`;
   return lang === "de" ? DE.page(n, t) : HU.page(n, t);
 }
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(d: string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "â€”";
   const parts = d.slice(0, 10).split("-");
   if (parts.length !== 3) return d;
   return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
 function fmtMoney(n: number | null | undefined, currency: InvoiceCurrency): string {
-  if (n == null) return currency === "HUF" ? "0 Ft" : "€ 0,00";
+  if (n == null) return currency === "HUF" ? "0 Ft" : "â‚¬ 0,00";
   if (currency === "HUF") {
     const rounded = Math.round(n);
     const parts = Math.abs(rounded).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
@@ -151,61 +162,67 @@ function fmtMoney(n: number | null | undefined, currency: InvoiceCurrency): stri
   const abs = Math.abs(n);
   const [int = "0", dec = "00"] = abs.toFixed(2).split(".");
   const thousands = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sign}€ ${thousands},${dec}`;
+  return `${sign}â‚¬ ${thousands},${dec}`;
 }
 
-// ─── SVG decorations (botanical leaf clusters) ────────────────────────────────
+// â”€â”€â”€ SVG decorations (botanical leaf clusters) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Top-right corner: elegant leaf branch curving from top-right inward */
 function LeafTopRight() {
   return (
     <Svg
-      viewBox="0 0 72 80"
-      style={{ position: "absolute", top: 0, right: 0, width: 72, height: 80, opacity: 0.75 }}
+      viewBox="0 0 100 115"
+      style={{ position: "absolute", top: 0, right: 0, width: 100, height: 115, opacity: 0.80 }}
     >
       {/* main stem */}
       <Path
-        d="M 68 4 C 58 12 42 28 28 44 C 18 54 10 64 6 74"
-        stroke={C.brownLight}
-        strokeWidth="1.3"
+        d="M 94 5 C 80 16 60 36 40 58 C 26 72 14 86 8 100"
+        stroke={C.taupe}
+        strokeWidth="1.4"
         fill="none"
         strokeLinecap="round"
       />
-      {/* leaf 1 – upper tip */}
+      {/* leaf 1 â€“ upper tip */}
       <Path
-        d="M 68 4 C 62 0 54 2 52 10 C 58 10 66 8 68 4 Z"
-        stroke={C.brownLight}
-        strokeWidth="0.9"
-        fill="none"
+        d="M 94 5 C 86 -1 74 2 72 13 C 80 13 90 10 94 5 Z"
+        stroke={C.taupe}
+        strokeWidth="1"
+        fill={C.beigeAlt}
       />
+      {/* leaf 1 midrib */}
+      <Path d="M 94 5 C 88 7 78 10 72 13" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 2 */}
       <Path
-        d="M 52 18 C 58 12 66 14 66 22 C 60 22 54 20 52 18 Z"
-        stroke={C.brownLight}
-        strokeWidth="0.9"
-        fill="none"
+        d="M 72 22 C 80 14 92 17 92 28 C 84 28 74 26 72 22 Z"
+        stroke={C.taupe}
+        strokeWidth="1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 72 22 C 78 23 86 25 92 28" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 3 */}
       <Path
-        d="M 38 32 C 44 26 52 28 52 36 C 46 36 40 34 38 32 Z"
-        stroke={C.brownLight}
-        strokeWidth="0.9"
-        fill="none"
+        d="M 52 40 C 60 32 72 35 72 46 C 64 46 54 44 52 40 Z"
+        stroke={C.taupe}
+        strokeWidth="1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 52 40 C 58 42 66 44 72 46" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 4 */}
       <Path
-        d="M 25 46 C 30 40 38 42 38 50 C 32 50 27 48 25 46 Z"
-        stroke={C.brownLight}
-        strokeWidth="0.9"
-        fill="none"
+        d="M 34 58 C 42 50 54 53 54 64 C 46 64 36 62 34 58 Z"
+        stroke={C.taupe}
+        strokeWidth="1"
+        fill={C.beigeAlt}
       />
-      {/* leaf 5 – lower */}
+      <Path d="M 34 58 C 40 60 48 62 54 64" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
+      {/* leaf 5 â€“ lower */}
       <Path
-        d="M 12 60 C 16 54 24 56 24 64 C 18 64 13 62 12 60 Z"
-        stroke={C.brownLight}
-        strokeWidth="0.9"
-        fill="none"
+        d="M 16 76 C 22 68 34 71 34 82 C 26 82 18 80 16 76 Z"
+        stroke={C.taupe}
+        strokeWidth="1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 16 76 C 22 78 28 80 34 82" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
     </Svg>
   );
 }
@@ -214,52 +231,57 @@ function LeafTopRight() {
 function LeafBottomLeft() {
   return (
     <Svg
-      viewBox="0 0 90 100"
-      style={{ position: "absolute", bottom: 0, left: 0, width: 90, height: 100, opacity: 0.75 }}
+      viewBox="0 0 115 130"
+      style={{ position: "absolute", bottom: 0, left: 0, width: 115, height: 130, opacity: 0.80 }}
     >
       {/* main stem */}
       <Path
-        d="M 8 96 C 18 84 34 68 50 52 C 62 40 72 28 80 12"
-        stroke={C.brownLight}
-        strokeWidth="1.5"
+        d="M 10 122 C 22 106 42 88 62 68 C 78 52 90 36 100 14"
+        stroke={C.taupe}
+        strokeWidth="1.6"
         fill="none"
         strokeLinecap="round"
       />
-      {/* leaf 1 – lower */}
+      {/* leaf 1 â€“ lower */}
       <Path
-        d="M 8 96 C 2 88 4 78 12 76 C 14 84 12 92 8 96 Z"
-        stroke={C.brownLight}
-        strokeWidth="1"
-        fill="none"
+        d="M 10 122 C 2 112 4 98 14 94 C 18 106 16 118 10 122 Z"
+        stroke={C.taupe}
+        strokeWidth="1.1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 10 122 C 12 114 14 104 14 94" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 2 */}
       <Path
-        d="M 22 82 C 14 76 16 66 24 64 C 26 72 26 80 22 82 Z"
-        stroke={C.brownLight}
-        strokeWidth="1"
-        fill="none"
+        d="M 28 104 C 18 96 20 82 30 78 C 34 88 34 100 28 104 Z"
+        stroke={C.taupe}
+        strokeWidth="1.1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 28 104 C 30 96 30 86 30 78" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 3 */}
       <Path
-        d="M 38 68 C 30 62 30 52 38 50 C 42 58 42 66 38 68 Z"
-        stroke={C.brownLight}
-        strokeWidth="1"
-        fill="none"
+        d="M 48 86 C 38 78 38 64 48 60 C 54 70 54 82 48 86 Z"
+        stroke={C.taupe}
+        strokeWidth="1.1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 48 86 C 50 78 50 68 48 60" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 4 */}
       <Path
-        d="M 54 52 C 46 46 46 36 54 34 C 58 42 58 50 54 52 Z"
-        stroke={C.brownLight}
-        strokeWidth="1"
-        fill="none"
+        d="M 66 68 C 56 60 58 46 68 42 C 74 52 74 64 66 68 Z"
+        stroke={C.taupe}
+        strokeWidth="1.1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 66 68 C 68 60 68 50 68 42" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* leaf 5 */}
       <Path
-        d="M 68 36 C 60 30 62 20 70 18 C 74 26 74 34 68 36 Z"
-        stroke={C.brownLight}
-        strokeWidth="1"
-        fill="none"
+        d="M 84 48 C 74 40 76 26 86 22 C 92 32 92 44 84 48 Z"
+        stroke={C.taupe}
+        strokeWidth="1.1"
+        fill={C.beigeAlt}
       />
+      <Path d="M 84 48 C 86 40 86 30 86 22" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
       {/* small side leaf */}
       <Path
         d="M 80 12 C 74 6 76 -2 84 -2 C 88 6 86 12 80 12 Z"
@@ -271,11 +293,11 @@ function LeafBottomLeft() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const S = StyleSheet.create({
   page: {
-    fontFamily: "Helvetica",
+    fontFamily: "Lato",
     fontSize: 9,
     color: C.brown,
     backgroundColor: C.white,
@@ -286,20 +308,21 @@ const S = StyleSheet.create({
     lineHeight: 1.45,
   },
 
-  // ── Title area ──────────────────────────────────────────────────────────────
+  // â”€â”€ Title area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   titleArea: {
     marginBottom: 6,
     paddingRight: 80, // leave room for leaf SVG
   },
   titleText: {
-    fontFamily: "Helvetica",
+    fontFamily: "Lato",
+    fontWeight: 400,
     fontSize: 28,
     color: "#B0A494",
     letterSpacing: -0.5,
     marginBottom: 2,
   },
 
-  // ── Divider ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   divider: {
     height: 1,
     backgroundColor: C.border,
@@ -307,7 +330,7 @@ const S = StyleSheet.create({
     marginTop: 6,
   },
 
-  // ── Client + meta block ──────────────────────────────────────────────────────
+  // â”€â”€ Client + meta block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   clientMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -319,14 +342,16 @@ const S = StyleSheet.create({
   },
   clientLabel: {
     fontSize: 7.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     color: C.brownLight,
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 5,
   },
   clientName: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 11,
     color: C.brown,
     marginBottom: 2,
@@ -353,14 +378,15 @@ const S = StyleSheet.create({
     width: 100,
   },
   metaValue: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 8.5,
     color: C.brown,
     width: 80,
     textAlign: "right",
   },
 
-  // ── Table ────────────────────────────────────────────────────────────────────
+  // â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   table: {
     marginBottom: 16,
     borderWidth: 1,
@@ -385,7 +411,8 @@ const S = StyleSheet.create({
     backgroundColor: C.beige,
   },
   colHead: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 7.5,
     color: C.brownMid,
     letterSpacing: 0.4,
@@ -400,7 +427,7 @@ const S = StyleSheet.create({
   cUnit:  { width: 78,  textAlign: "right", paddingRight: 8 },
   cVal:   { width: 78,  textAlign: "right" },
 
-  // ── Totals ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   totalsSection: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -427,7 +454,8 @@ const S = StyleSheet.create({
     color: C.brownMid,
   },
   totalsValue: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 8.5,
     color: C.brown,
   },
@@ -440,18 +468,20 @@ const S = StyleSheet.create({
     backgroundColor: C.taupe,
   },
   totalFinalLabel: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 11,
     color: C.white,
     letterSpacing: 0.5,
   },
   totalFinalValue: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 12,
     color: C.white,
   },
 
-  // ── Notes ────────────────────────────────────────────────────────────────────
+  // â”€â”€ Notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   notesBox: {
     borderWidth: 1,
     borderColor: C.border,
@@ -461,7 +491,8 @@ const S = StyleSheet.create({
     backgroundColor: C.beige,
   },
   notesLabel: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 7.5,
     color: C.brownMid,
     textTransform: "uppercase",
@@ -474,7 +505,7 @@ const S = StyleSheet.create({
     lineHeight: 1.6,
   },
 
-  // ── Beneficiary / payment section ─────────────────────────────────────────────
+  // â”€â”€ Beneficiary / payment section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   beneSection: {
     backgroundColor: C.beige,
     borderWidth: 1,
@@ -484,7 +515,8 @@ const S = StyleSheet.create({
     marginBottom: 16,
   },
   beneTitle: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 8,
     color: C.brownMid,
     textTransform: "uppercase",
@@ -495,7 +527,8 @@ const S = StyleSheet.create({
     paddingBottom: 4,
   },
   beneName: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 10,
     color: C.brown,
     marginBottom: 4,
@@ -515,7 +548,8 @@ const S = StyleSheet.create({
     width: 70,
   },
   beneValue: {
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Lato",
+    fontWeight: 700,
     fontSize: 8,
     color: C.brown,
     flex: 1,
@@ -528,7 +562,7 @@ const S = StyleSheet.create({
     borderTopColor: C.borderLight,
   },
 
-  // ── Contact footer ────────────────────────────────────────────────────────────
+  // â”€â”€ Contact footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   contactBar: {
     flexDirection: "row",
     justifyContent: "center",
@@ -541,7 +575,7 @@ const S = StyleSheet.create({
     textAlign: "center",
   },
 
-  // ── Fixed page footer ──────────────────────────────────────────────────────────
+  // â”€â”€ Fixed page footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   footer: {
     position: "absolute",
     bottom: 18,
@@ -558,9 +592,22 @@ const S = StyleSheet.create({
     fontSize: 7,
     color: C.brownLight,
   },
+
+  // â”€â”€ Exchange-rate note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  rateNote: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: -10,
+    marginBottom: 14,
+  },
+  rateNoteText: {
+    fontSize: 7,
+    color: C.brownLight,
+    fontStyle: "italic",
+  },
 });
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MetaRow({ lbl, val }: { lbl: string; val: string }) {
   return (
@@ -586,10 +633,12 @@ function TableItemRow({
   item,
   index,
   currency,
+  rate,
 }: {
   item: InvoiceItem;
   index: number;
   currency: InvoiceCurrency;
+  rate: number;
 }) {
   const alt = index % 2 === 1;
   return (
@@ -602,23 +651,25 @@ function TableItemRow({
             : item.quantity.toFixed(2)
           : item.quantity}
       </Text>
-      <Text style={[S.colCell, S.cUnit]}>{fmtMoney(item.unit_price, currency)}</Text>
-      <Text style={[S.colCell, S.cVal]}>{fmtMoney(item.total, currency)}</Text>
+      <Text style={[S.colCell, S.cUnit]}>{fmtMoney((item.unit_price ?? 0) * rate, currency)}</Text>
+      <Text style={[S.colCell, S.cVal]}>{fmtMoney((item.total ?? 0) * rate, currency)}</Text>
     </View>
   );
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface InvoicePDFProps {
-  invoice:  Invoice;
-  client:   Client;
-  settings: Record<string, string>;
-  language?: InvoiceLanguage;
-  currency?: InvoiceCurrency;
+  invoice:      Invoice;
+  client:       Client;
+  settings:     Record<string, string>;
+  language?:    InvoiceLanguage;
+  currency?:    InvoiceCurrency;
+  /** Multiplier applied to all amounts (e.g. 0.0025 for HUFâ†’EUR at 400 Ft/â‚¬) */
+  exchangeRate?: number;
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function InvoicePDF({
   invoice,
@@ -626,8 +677,10 @@ export function InvoicePDF({
   settings,
   language = "hu",
   currency = "EUR",
+  exchangeRate,
 }: InvoicePDFProps) {
-  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-Göncz Zsuzsanna, Utazó fotós";
+  const rate = exchangeRate ?? 1;
+  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-GĂ¶ncz Zsuzsanna, UtazĂł fotĂłs";
   const email       = settings["agency_email"]   || "";
   const phone       = settings["agency_phone"]   || "";
   const iban        = settings["iban"]           || "";
@@ -635,10 +688,14 @@ export function InvoicePDF({
   const bankName    = settings["bank_name"]      || "";
   const bankAcctNo  = settings["bank_account_number"] || "";
 
-  const items     = (invoice.items ?? []) as InvoiceItem[];
-  const subtotal  = invoice.subtotal  ?? items.reduce((s, i) => s + i.total, 0);
-  const taxAmount = invoice.tax_amount ?? subtotal * invoice.tax_rate / 100;
-  const total     = invoice.total     ?? subtotal + taxAmount;
+  const items          = (invoice.items ?? []) as InvoiceItem[];
+  const rawSubtotal    = invoice.subtotal  ?? items.reduce((s, i) => s + i.total, 0);
+  const rawTaxAmount   = invoice.tax_amount ?? rawSubtotal * invoice.tax_rate / 100;
+  const rawTotal       = invoice.total     ?? rawSubtotal + rawTaxAmount;
+  // Apply exchange rate (1 = no conversion)
+  const subtotal  = rawSubtotal  * rate;
+  const taxAmount = rawTaxAmount * rate;
+  const total     = rawTotal     * rate;
   const taxRate   = invoice.tax_rate ?? 0;
   const showTax   = taxRate > 0;
 
@@ -648,16 +705,16 @@ export function InvoicePDF({
     client.address_country,
   ].filter(Boolean);
 
-  // Contact bar: phone · email
+  // Contact bar: phone Â· email
   const contactParts = [phone, email].filter(Boolean);
-  const contactLine  = contactParts.join("  ·  ");
+  const contactLine  = contactParts.join("  Â·  ");
 
   // Tax label
   const taxLabel = language === "bilingual"
-    ? `${taxRate}% ÁFA / MwSt.`
+    ? `${taxRate}% ĂFA / MwSt.`
     : language === "de"
       ? `${taxRate}% MwSt.`
-      : `${taxRate}% ÁFA`;
+      : `${taxRate}% ĂFA`;
 
   return (
     <Document
@@ -667,18 +724,18 @@ export function InvoicePDF({
     >
       <Page size="A4" style={S.page}>
 
-        {/* ── Leaf decoration — top right ─────────────────────────────────── */}
+        {/* â”€â”€ Leaf decoration â€” top right â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <LeafTopRight />
 
-        {/* ── Title ───────────────────────────────────────────────────────── */}
+        {/* â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.titleArea}>
           <Text style={S.titleText}>{titleLabel(language)}</Text>
         </View>
 
-        {/* ── Divider ─────────────────────────────────────────────────────── */}
+        {/* â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.divider} />
 
-        {/* ── Client + meta block ─────────────────────────────────────────── */}
+        {/* â”€â”€ Client + meta block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.clientMetaRow}>
           <View style={S.clientBlock}>
             <Text style={S.clientLabel}>{label("client", language)}</Text>
@@ -702,15 +759,15 @@ export function InvoicePDF({
           </View>
         </View>
 
-        {/* ── Line-items table ────────────────────────────────────────────── */}
+        {/* â”€â”€ Line-items table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.table}>
           <TableHeaderRow lang={language} />
           {items.map((item, i) => (
-            <TableItemRow key={i} item={item} index={i} currency={currency} />
+            <TableItemRow key={i} item={item} index={i} currency={currency} rate={rate} />
           ))}
         </View>
 
-        {/* ── Totals ──────────────────────────────────────────────────────── */}
+        {/* â”€â”€ Totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.totalsSection}>
           <View style={S.totalsBox}>
             {showTax && (
@@ -732,7 +789,20 @@ export function InvoicePDF({
           </View>
         </View>
 
-        {/* ── Notes ───────────────────────────────────────────────────────── */}
+        {/* â”€â”€ Exchange-rate note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {rate !== 1 && (
+          <View style={S.rateNote}>
+            <Text style={S.rateNoteText}>
+              {language === "de"
+                ? `Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
+                : language === "bilingual"
+                  ? `ĂtvĂˇltĂˇs / Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
+                  : `ĂtvĂˇltĂˇs: 1 EUR = ${Math.round(1 / rate)} Ft`}
+            </Text>
+          </View>
+        )}
+
+        {/* â”€â”€ Notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {invoice.notes ? (
           <View style={S.notesBox}>
             <Text style={S.notesLabel}>{label("notes", language)}</Text>
@@ -740,7 +810,7 @@ export function InvoicePDF({
           </View>
         ) : null}
 
-        {/* ── Beneficiary / payment section ───────────────────────────────── */}
+        {/* â”€â”€ Beneficiary / payment section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.beneSection}>
           <Text style={S.beneTitle}>{label("beneficiary", language)}</Text>
           <Text style={S.beneName}>{companyName}</Text>
@@ -766,23 +836,23 @@ export function InvoicePDF({
           </View>
           <View style={S.payRefRow}>
             <Text style={S.beneLabel}>{label("payRef", language)}</Text>
-            <Text style={[S.beneValue, { fontFamily: "Helvetica-Bold" }]}>
+            <Text style={[S.beneValue, { fontFamily: "Lato", fontWeight: 700 }]}>
               {invoice.invoice_number}
             </Text>
           </View>
         </View>
 
-        {/* ── Contact bar ─────────────────────────────────────────────────── */}
+        {/* â”€â”€ Contact bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {contactLine ? (
           <View style={S.contactBar}>
             <Text style={S.contactText}>{contactLine}</Text>
           </View>
         ) : null}
 
-        {/* ── Leaf decoration — bottom left ───────────────────────────────── */}
+        {/* â”€â”€ Leaf decoration â€” bottom left â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <LeafBottomLeft />
 
-        {/* ── Fixed footer ────────────────────────────────────────────────── */}
+        {/* â”€â”€ Fixed footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.footer} fixed>
           <Text style={S.footerText}>{companyName}</Text>
           <Text

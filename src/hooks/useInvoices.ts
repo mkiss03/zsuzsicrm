@@ -262,13 +262,34 @@ export function useInvoices() {
           import("@/lib/invoice-pdf"),
         ]);
 
+        // Fetch live EUR/HUF exchange rate when converting currencies.
+        // Amounts are assumed to be stored in HUF; when displaying in EUR we divide by rate.
+        const targetCurrency = options?.currency ?? "EUR";
+        let exchangeRate: number | undefined;
+        if (targetCurrency === "EUR") {
+          try {
+            const rateRes = await fetch(
+              "https://api.frankfurter.app/latest?from=HUF&to=EUR",
+              { signal: AbortSignal.timeout(4000) },
+            );
+            if (rateRes.ok) {
+              const rateJson = await rateRes.json() as { rates?: { EUR?: number } };
+              exchangeRate = rateJson.rates?.EUR ?? undefined;
+            }
+          } catch {
+            // Network unavailable — fall back to approximate rate
+            exchangeRate = 1 / 400;
+          }
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const element = React.createElement(InvoicePDF, {
           invoice: invoice as unknown as Invoice,
           client: (invoice as unknown as { client: Client }).client,
           settings,
           language: options?.language ?? "hu",
-          currency: options?.currency ?? "EUR",
+          currency: targetCurrency,
+          exchangeRate,
         }) as any;
         const blob = await pdf(element).toBlob();
 
