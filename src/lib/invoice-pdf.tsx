@@ -6,7 +6,7 @@
  *   currency : "EUR" | "HUF"               (default "EUR")
  *
  * Design: warm beige palette, botanical leaf decorations,
- * matches the style used by UtazĂłFotĂłs / Tuza-GĂ¶ncz Zsuzsanna.
+ * matches the style used by UtazóFotós / Tuza-Göncz Zsuzsanna.
  */
 
 import React from "react";
@@ -25,8 +25,8 @@ import {
 Font.register({
   family: "Lato",
   fonts: [
-    { src: "/fonts/Lato-Regular.ttf", fontWeight: 400 },
-    { src: "/fonts/Lato-Bold.ttf",    fontWeight: 700 },
+    { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Regular.ttf", fontWeight: 400 },
+    { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Bold.ttf",    fontWeight: 700 },
   ],
 });
 Font.registerHyphenationCallback((word) => [word]); // disable hyphenation
@@ -79,26 +79,26 @@ interface LabelSet {
 }
 
 const HU: LabelSet = {
-  title:       "SzĂˇmla rĂ©szletezĹ‘",
-  client:      "MegrendelĹ‘:",
-  date:        "DĂˇtum:",
-  invNum:      "SzĂˇmlaszĂˇm:",
-  dueDate:     "FizetĂ©si hatĂˇridĹ‘:",
-  serviceDate: "TeljesĂ­tĂ©s dĂˇtuma:",
-  colItem:     "TĂ‰TEL",
-  colQty:      "MENNYISĂ‰G",
-  colUnit:     "EGYSĂ‰GĂR",
-  colValue:    "Ă‰RTĂ‰K",
-  netTotal:    "NettĂł Ă¶sszeg:",
-  tax:         "ĂFA",
+  title:       "Számla részletező",
+  client:      "Megrendelő:",
+  date:        "Dátum:",
+  invNum:      "Számlaszám:",
+  dueDate:     "Fizetési határidő:",
+  serviceDate: "Teljesítés dátuma:",
+  colItem:     "TÉTEL",
+  colQty:      "MENNYISÉG",
+  colUnit:     "EGYSÉGÁR",
+  colValue:    "ÉRTÉK",
+  netTotal:    "Nettó összeg:",
+  tax:         "ÁFA",
   total:       "TOTAL",
-  beneficiary: "KEDVEZMĂ‰NYEZETT",
-  bankAcct:    "BankszĂˇmlaszĂˇm:",
+  beneficiary: "KEDVEZMÉNYEZETT",
+  bankAcct:    "Bankszámlaszám:",
   iban:        "IBAN:",
   bic:         "BIC/SWIFT:",
-  payRef:      "KĂ¶zlemĂ©ny:",
-  notes:       "MegjegyzĂ©s",
-  thanks:      "KĂ¶szĂ¶njĂĽk a bizalmat!",
+  payRef:      "Közlemény:",
+  notes:       "Megjegyzés",
+  thanks:      "Köszönjük a bizalmat!",
   page:        (n, t) => `${n}. oldal / ${t}`,
 };
 
@@ -116,13 +116,13 @@ const DE: LabelSet = {
   netTotal:    "Nettobetrag:",
   tax:         "MwSt.",
   total:       "GESAMT",
-  beneficiary: "EMPFĂ„NGER",
+  beneficiary: "EMPFÄNGER",
   bankAcct:    "Bankkontonummer:",
   iban:        "IBAN:",
   bic:         "BIC/SWIFT:",
   payRef:      "Verwendungszweck:",
   notes:       "Hinweis",
-  thanks:      "Vielen Dank fĂĽr Ihr Vertrauen!",
+  thanks:      "Vielen Dank für Ihr Vertrauen!",
   page:        (n, t) => `Seite ${n} von ${t}`,
 };
 
@@ -132,19 +132,19 @@ function label(key: keyof Omit<LabelSet, "page">, lang: InvoiceLanguage): string
 }
 
 function titleLabel(lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.title}  Â·  ${DE.title}`;
+  if (lang === "bilingual") return `${HU.title}  ·  ${DE.title}`;
   return lang === "de" ? DE.title : HU.title;
 }
 
 function pageLabel(n: number, t: number, lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.page(n, t)}  Â·  ${DE.page(n, t)}`;
+  if (lang === "bilingual") return `${HU.page(n, t)}  ·  ${DE.page(n, t)}`;
   return lang === "de" ? DE.page(n, t) : HU.page(n, t);
 }
 
 // â”€â”€â”€ Formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(d: string | null | undefined): string {
-  if (!d) return "â€”";
+  if (!d) return "—";
   const parts = d.slice(0, 10).split("-");
   if (parts.length !== 3) return d;
   return `${parts[2]}.${parts[1]}.${parts[0]}`;
@@ -162,7 +162,7 @@ function fmtMoney(n: number | null | undefined, currency: InvoiceCurrency): stri
   const abs = Math.abs(n);
   const [int = "0", dec = "00"] = abs.toFixed(2).split(".");
   const thousands = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sign}â‚¬ ${thousands},${dec}`;
+  return `${sign}€ ${thousands},${dec}`;
 }
 
 // â”€â”€â”€ SVG decorations (botanical leaf clusters) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -680,7 +680,7 @@ export function InvoicePDF({
   exchangeRate,
 }: InvoicePDFProps) {
   const rate = exchangeRate ?? 1;
-  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-GĂ¶ncz Zsuzsanna, UtazĂł fotĂłs";
+  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-Göncz Zsuzsanna, Utazó fotós";
   const email       = settings["agency_email"]   || "";
   const phone       = settings["agency_phone"]   || "";
   const iban        = settings["iban"]           || "";
@@ -707,14 +707,14 @@ export function InvoicePDF({
 
   // Contact bar: phone Â· email
   const contactParts = [phone, email].filter(Boolean);
-  const contactLine  = contactParts.join("  Â·  ");
+  const contactLine  = contactParts.join("  ·  ");
 
   // Tax label
   const taxLabel = language === "bilingual"
-    ? `${taxRate}% ĂFA / MwSt.`
+    ? `${taxRate}% ÁFA / MwSt.`
     : language === "de"
       ? `${taxRate}% MwSt.`
-      : `${taxRate}% ĂFA`;
+      : `${taxRate}% ÁFA`;
 
   return (
     <Document
@@ -796,8 +796,8 @@ export function InvoicePDF({
               {language === "de"
                 ? `Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
                 : language === "bilingual"
-                  ? `ĂtvĂˇltĂˇs / Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
-                  : `ĂtvĂˇltĂˇs: 1 EUR = ${Math.round(1 / rate)} Ft`}
+                  ? `Átváltás / Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
+                  : `Átváltás: 1 EUR = ${Math.round(1 / rate)} Ft`}
             </Text>
           </View>
         )}
