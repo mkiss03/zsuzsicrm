@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -117,7 +117,8 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
   }
 
   // Trigger PDF load on mount
-  useState(() => { void regeneratePDF(language, currency); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void regeneratePDF(language, currency); }, []);
 
   function handleLanguageChange(lang: InvoiceLanguage) {
     setLanguage(lang);

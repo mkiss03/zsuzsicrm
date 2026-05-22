@@ -268,16 +268,15 @@ export function useInvoices() {
         let exchangeRate: number | undefined;
         if (targetCurrency === "EUR") {
           try {
-            const rateRes = await fetch(
-              "https://api.frankfurter.app/latest?from=HUF&to=EUR",
-              { signal: AbortSignal.timeout(4000) },
-            );
+            const rateRes = await fetch("/api/exchange-rate", {
+              signal: AbortSignal.timeout(4000),
+            });
             if (rateRes.ok) {
-              const rateJson = await rateRes.json() as { rates?: { EUR?: number } };
-              exchangeRate = rateJson.rates?.EUR ?? undefined;
+              const rateJson = await rateRes.json() as { rate?: number };
+              exchangeRate = rateJson.rate ?? undefined;
             }
           } catch {
-            // Network unavailable — fall back to approximate rate
+            // Fallback to approximate rate if proxy is unreachable
             exchangeRate = 1 / 400;
           }
         }
