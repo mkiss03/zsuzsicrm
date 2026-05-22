@@ -151,7 +151,7 @@ function fmtDate(d: string | null | undefined): string {
 }
 
 function fmtMoney(n: number | null | undefined, currency: InvoiceCurrency): string {
-  if (n == null) return currency === "HUF" ? "0 Ft" : "â‚¬ 0,00";
+  if (n == null) return currency === "HUF" ? "0 Ft" : "€ 0,00";
   if (currency === "HUF") {
     const rounded = Math.round(n);
     const parts = Math.abs(rounded).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
@@ -603,7 +603,6 @@ const S = StyleSheet.create({
   rateNoteText: {
     fontSize: 7,
     color: C.brownLight,
-    fontStyle: "italic",
   },
 });
 

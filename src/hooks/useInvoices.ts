@@ -61,6 +61,7 @@ export function useInvoices() {
     try {
       return await fn();
     } catch (e) {
+      console.error("[generatePDF] error:", e);
       setError(e instanceof Error ? e.message : "Ismeretlen hiba");
       return null;
     } finally {
