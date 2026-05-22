@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * WorkflowTab — 11-step booking lifecycle manager
+ * WorkflowTab — 9-step booking lifecycle manager
  *
  * PHASES:
- *  1. Fogadás        → inquiry_received, confirmation_sent
- *  2. Fizetés        → deposit_request, deposit_paid, docs_verify, full_payment_request, full_paid
+ *  1. Fogadás        → inquiry_received, info_sent
+ *  2. Fizetés        → deposit_paid, docs_verify, full_paid
  *  3. Előkészítés    → pre_trip_send
  *  4. Utazás         → trip_started, trip_completed, followup_sent
  */
@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle2, Circle, Send,
-  Wallet, ShieldCheck, CreditCard, Mail, Loader2,
+  ShieldCheck, Mail, Loader2,
   SkipForward, Inbox,
   MapPin, Plane, Star, BadgeCheck, ArrowRight,
   MessageSquare,
@@ -49,17 +49,15 @@ interface StepDef {
 }
 
 const ALL_STEPS: StepDef[] = [
-  { key: "inquiry_received",     title: "Érdeklődés rögzítve",       desc: "A foglalás beérkezett a rendszerbe.",                             mode: "auto",   phase: 1, icon: Inbox },
-  { key: "confirmation_sent",    title: "Visszaigazolás elküldve",    desc: "Visszaigazolás elküldve — minden tudnivaló és fájl csatolva.",   mode: "manual", phase: 1, icon: Mail,       actionLabel: "Visszaigazolás küldése", emailTemplate: "booking_confirmation" },
-  { key: "deposit_request",      title: "Előleg bekérve",             desc: "Előlegfizetési felszólítás elküldve.",                           mode: "manual", phase: 2, icon: Wallet,     actionLabel: "Előleg email küldése",   emailTemplate: "deposit_request" },
-  { key: "deposit_paid",         title: "Előleg befizetve",           desc: "Az előleg összege beérkezett.",                                  mode: "auto",   phase: 2, icon: BadgeCheck },
-  { key: "docs_verify",          title: "Dokumentumok ellenőrizve",   desc: "Útlevél, vízum, biztosítás rendben.",                            mode: "manual", phase: 2, icon: ShieldCheck, actionLabel: "Megjelölés rendben" },
-  { key: "full_payment_request", title: "Végösszeg bekérve",          desc: "Végső fizetési emlékeztető elküldve.",                           mode: "manual", phase: 2, icon: CreditCard,  actionLabel: "Emlékeztető küldése",    emailTemplate: "reminder" },
-  { key: "full_paid",            title: "Végösszeg befizetve",        desc: "A teljes összeg beérkezett.",                                    mode: "auto",   phase: 2, icon: BadgeCheck },
-  { key: "pre_trip_send",        title: "Utazás előtti tájékoztató",  desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",        mode: "manual", phase: 3, icon: MapPin,     actionLabel: "Tájékoztató küldése",    emailTemplate: "pre_trip" },
-  { key: "trip_started",         title: "Utazás megkezdve",           desc: "Az utazócsoport elindult.",                                      mode: "auto",   phase: 4, icon: Plane },
-  { key: "trip_completed",       title: "Utazás befejezve",           desc: "Az utazás sikeresen véget ért.",                                 mode: "auto",   phase: 4, icon: CheckCircle2 },
-  { key: "followup_sent",        title: "Visszajelzés kérve",         desc: "Köszönő email és értékelési kérés elküldve.",                    mode: "manual", phase: 4, icon: Star,       actionLabel: "Köszönő email küldése",  emailTemplate: "followup" },
+  { key: "inquiry_received", title: "Érdeklődés rögzítve",          desc: "A foglalás beérkezett a rendszerbe.",                                            mode: "auto",   phase: 1, icon: Inbox },
+  { key: "info_sent",        title: "Információs email elküldve",   desc: "Egy email – minden tudnivaló, fizetési lehetőségek és csatolmányok elküldve.",  mode: "manual", phase: 1, icon: Mail,       actionLabel: "Info email küldése",    emailTemplate: "booking_confirmation" },
+  { key: "deposit_paid",     title: "Előleg befizetve",             desc: "Az előleg összege beérkezett. A hely ettől fogva foglalt.",                     mode: "auto",   phase: 2, icon: BadgeCheck },
+  { key: "docs_verify",      title: "Dokumentumok ellenőrizve",     desc: "Útlevél, vízum, biztosítás rendben.",                                           mode: "manual", phase: 2, icon: ShieldCheck, actionLabel: "Megjelölés rendben" },
+  { key: "full_paid",        title: "Végösszeg befizetve",          desc: "A teljes összeg beérkezett.",                                                   mode: "auto",   phase: 2, icon: BadgeCheck },
+  { key: "pre_trip_send",    title: "Utazás előtti tájékoztató",    desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",                      mode: "manual", phase: 3, icon: MapPin,     actionLabel: "Tájékoztató küldése",   emailTemplate: "pre_trip" },
+  { key: "trip_started",     title: "Utazás megkezdve",             desc: "Az utazócsoport elindult.",                                                     mode: "auto",   phase: 4, icon: Plane },
+  { key: "trip_completed",   title: "Utazás befejezve",             desc: "Az utazás sikeresen véget ért.",                                                mode: "auto",   phase: 4, icon: CheckCircle2 },
+  { key: "followup_sent",    title: "Visszajelzés kérve",           desc: "Köszönő email és értékelési kérés elküldve.",                                   mode: "manual", phase: 4, icon: Star,       actionLabel: "Köszönő email küldése", emailTemplate: "followup" },
 ];
 
 // ─── Phase definitions ─────────────────────────────────────────────────────────

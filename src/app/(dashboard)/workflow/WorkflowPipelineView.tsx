@@ -5,7 +5,7 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
 import { toast } from "sonner";
 import {
-  Send, Wallet, ShieldCheck, CreditCard,
+  Send, Wallet, ShieldCheck,
   Mail, Loader2, Inbox,
   MapPin, Plane, Star, BadgeCheck, ArrowRight,
   Search, X, Check, ChevronRight, AlertCircle,
@@ -37,17 +37,54 @@ interface StepDef {
 }
 
 const ALL_STEPS: StepDef[] = [
-  { key: "inquiry_received",     title: "Érdeklődés rögzítve",       shortTitle: "Érdeklődés",      desc: "A foglalás beérkezett a rendszerbe.",                              mode: "auto",   phase: 1, icon: Inbox },
-  { key: "confirmation_sent",    title: "Visszaigazolás elküldve",    shortTitle: "Visszaigazolás",  desc: "Visszaigazolás elküldve — minden tudnivaló és file csatolva.",     mode: "manual", phase: 1, icon: Mail,       actionLabel: "Visszaigazolás küldése", emailTemplate: "booking_confirmation" },
-  { key: "deposit_request",      title: "Előleg bekérve",             shortTitle: "Előleg kérés",    desc: "Előlegfizetési felszólítás elküldve.",                             mode: "manual", phase: 2, icon: Wallet,     actionLabel: "Előleg email küldése",   emailTemplate: "deposit_request" },
-  { key: "deposit_paid",         title: "Előleg befizetve",           shortTitle: "Előleg",          desc: "Az előleg összege beérkezett.",                                    mode: "auto",   phase: 2, icon: BadgeCheck },
-  { key: "docs_verify",          title: "Dokumentumok ellenőrizve",   shortTitle: "Dok. ellenőrzés", desc: "Útlevél, vízum, biztosítás rendben.",                              mode: "manual", phase: 2, icon: ShieldCheck, actionLabel: "Megjelölés rendben" },
-  { key: "full_payment_request", title: "Végösszeg bekérve",          shortTitle: "Végösszeg kérés", desc: "Végső fizetési emlékeztető elküldve.",                             mode: "manual", phase: 2, icon: CreditCard,  actionLabel: "Emlékeztető küldése",   emailTemplate: "reminder" },
-  { key: "full_paid",            title: "Végösszeg befizetve",        shortTitle: "Végösszeg",       desc: "A teljes összeg beérkezett.",                                      mode: "auto",   phase: 2, icon: BadgeCheck },
-  { key: "pre_trip_send",        title: "Utazás előtti tájékoztató",  shortTitle: "Tájékoztató",     desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",         mode: "manual", phase: 3, icon: MapPin,     actionLabel: "Tájékoztató küldése",   emailTemplate: "pre_trip" },
-  { key: "trip_started",         title: "Utazás megkezdve",           shortTitle: "Indulás",         desc: "Az utazócsoport elindult.",                                        mode: "auto",   phase: 4, icon: Plane },
-  { key: "trip_completed",       title: "Utazás befejezve",           shortTitle: "Visszaérkezés",   desc: "Az utazás sikeresen véget ért.",                                   mode: "auto",   phase: 4, icon: CheckCircle2 },
-  { key: "followup_sent",        title: "Visszajelzés kérve",         shortTitle: "Follow-up",       desc: "Köszönő email és értékelési kérés elküldve.",                      mode: "manual", phase: 4, icon: Star,       actionLabel: "Köszönő email küldése",  emailTemplate: "post_trip" },
+  {
+    key: "inquiry_received", title: "Érdeklődés rögzítve", shortTitle: "Érdeklődés",
+    desc: "A foglalás beérkezett a rendszerbe.",
+    mode: "auto", phase: 1, icon: Inbox,
+  },
+  {
+    key: "info_sent", title: "Információs email elküldve", shortTitle: "Info email",
+    desc: "Egy email – minden tudnivaló, fizetési lehetőségek és csatolmányok elküldve.",
+    mode: "manual", phase: 1, icon: Mail,
+    actionLabel: "Info email küldése", emailTemplate: "booking_confirmation",
+  },
+  {
+    key: "deposit_paid", title: "Előleg befizetve", shortTitle: "Előleg",
+    desc: "Az előleg összege beérkezett. A hely ettől fogva foglalt.",
+    mode: "auto", phase: 2, icon: BadgeCheck,
+  },
+  {
+    key: "docs_verify", title: "Dokumentumok ellenőrizve", shortTitle: "Dok. ellenőrzés",
+    desc: "Útlevél, vízum, biztosítás rendben.",
+    mode: "manual", phase: 2, icon: ShieldCheck, actionLabel: "Megjelölés rendben",
+  },
+  {
+    key: "full_paid", title: "Végösszeg befizetve", shortTitle: "Végösszeg",
+    desc: "A teljes összeg beérkezett.",
+    mode: "auto", phase: 2, icon: BadgeCheck,
+  },
+  {
+    key: "pre_trip_send", title: "Utazás előtti tájékoztató", shortTitle: "Tájékoztató",
+    desc: "Menetrend, találkozási pont, poggyász-tanácsok elküldve.",
+    mode: "manual", phase: 3, icon: MapPin,
+    actionLabel: "Tájékoztató küldése", emailTemplate: "pre_trip",
+  },
+  {
+    key: "trip_started", title: "Utazás megkezdve", shortTitle: "Indulás",
+    desc: "Az utazócsoport elindult.",
+    mode: "auto", phase: 4, icon: Plane,
+  },
+  {
+    key: "trip_completed", title: "Utazás befejezve", shortTitle: "Visszaérkezés",
+    desc: "Az utazás sikeresen véget ért.",
+    mode: "auto", phase: 4, icon: CheckCircle2,
+  },
+  {
+    key: "followup_sent", title: "Visszajelzés kérve", shortTitle: "Follow-up",
+    desc: "Köszönő email és értékelési kérés elküldve.",
+    mode: "manual", phase: 4, icon: Star,
+    actionLabel: "Köszönő email küldése", emailTemplate: "post_trip",
+  },
 ];
 
 // ─── Phase definitions ─────────────────────────────────────────────────────────
@@ -228,7 +265,7 @@ function AnimatedTimeline({ isStepDone, activeStepKey, expandedKey, onStepClick 
                 onClick={() => onStepClick(def.key)}
                 title={def.title}
                 className={cn(
-                  "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300 group z-10",
+                  "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300 group",
                   done   ? cn(phase.dot, "border-transparent text-white shadow-sm")
                   : active ? "border-blue-400 bg-blue-50 text-blue-600"
                   : isOpen ? "border-zinc-400 bg-zinc-100 text-zinc-600"
@@ -530,8 +567,9 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-zinc-100 px-6 py-4">
+      {/* Sticky header — name/trip info + timeline + progress (stays visible while step list scrolls) */}
+      <div className="sticky top-0 z-20 bg-white border-b border-zinc-200 px-6 pt-4 pb-3 space-y-3 shadow-sm">
+        {/* Name + booking info */}
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -561,10 +599,8 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
             </p>
           </div>
         </div>
-      </div>
 
-      <div className="px-6 py-5 space-y-6">
-        {/* Animated timeline */}
+        {/* Animated timeline (always visible) */}
         <AnimatedTimeline
           isStepDone={isStepDone}
           activeStepKey={activeStepKey}
@@ -572,19 +608,18 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
           onStepClick={toggleExpand}
         />
 
-        {/* Overall progress bar */}
+        {/* Overall progress bar + phase fractions */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-400">{doneCount}/{ALL_STEPS.length} lépés kész</span>
             <span className="font-bold text-zinc-600">{pct}%</span>
           </div>
-          <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-zinc-100 overflow-hidden">
             <div
               className="h-full rounded-full bg-blue-500 transition-all duration-700"
               style={{ width: `${pct}%` }}
             />
           </div>
-          {/* Phase fraction labels */}
           <div className="flex">
             {PHASES.map(phase => {
               const ps   = ALL_STEPS.filter(s => s.phase === phase.id);
@@ -599,8 +634,10 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
             })}
           </div>
         </div>
+      </div>
 
-        {/* Step list */}
+      {/* Scrollable step list */}
+      <div className="px-6 py-5">
         <div className="space-y-px">
           {ALL_STEPS.map((def, idx) => {
             const done    = isStepDone(def.key);

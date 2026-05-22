@@ -63,11 +63,9 @@ export type WorkflowStepStatus = "pending" | "done" | "skipped" | "blocked";
 /** Ordered workflow steps — the source-of-truth order lives in WorkflowTab. */
 export type WorkflowStepKey =
   | "inquiry_received"
-  | "confirmation_sent"
-  | "deposit_request"
+  | "info_sent"
   | "deposit_paid"
   | "docs_verify"
-  | "full_payment_request"
   | "full_paid"
   | "pre_trip_send"
   | "trip_started"
