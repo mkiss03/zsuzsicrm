@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -49,12 +49,6 @@ import type { Client, InvoiceStatus } from "@/types";
 
 const PAGE_SIZE = 20;
 
-function fmtEur(n: number | null | undefined): string {
-  if (n == null) return "€ —";
-  const [int = "0", dec = "00"] = Math.abs(n).toFixed(2).split(".");
-  return `€ ${int.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec}`;
-}
-
 // ─── Due date cell ────────────────────────────────────────────────────────────
 
 function DueDateCell({ due, status }: { due: string | null; status: InvoiceStatus }) {
@@ -71,7 +65,7 @@ function DueDateCell({ due, status }: { due: string | null; status: InvoiceStatu
 
 // ─── Stats row ────────────────────────────────────────────────────────────────
 
-function StatsRow({ stats }: { stats: InvoiceStats | null }) {
+function StatsRow({ stats, fmt }: { stats: InvoiceStats | null; fmt: (n: number | null | undefined) => string }) {
   if (!stats) {
     return (
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
@@ -85,12 +79,12 @@ function StatsRow({ stats }: { stats: InvoiceStats | null }) {
   }
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
-      <StatsCard title="Összes kiállítva"   value={fmtEur(stats.totalInvoiced)}   icon={Receipt} />
-      <StatsCard title="Befizetve"           value={fmtEur(stats.totalPaid)}       icon={CheckCircle} />
-      <StatsCard title="Kintlévő"            value={fmtEur(stats.totalOutstanding)} icon={Clock} />
+      <StatsCard title="Összes kiállítva"   value={fmt(stats.totalInvoiced)}   icon={Receipt} />
+      <StatsCard title="Befizetve"           value={fmt(stats.totalPaid)}       icon={CheckCircle} />
+      <StatsCard title="Kintlévő"            value={fmt(stats.totalOutstanding)} icon={Clock} />
       <StatsCard
         title="Lejárt"
-        value={fmtEur(stats.totalOverdue)}
+        value={fmt(stats.totalOverdue)}
         icon={AlertCircle}
         className={stats.overdueCount > 0 ? "border-red-200 bg-red-50/30" : ""}
       />
@@ -118,6 +112,8 @@ export default function InvoicesPage() {
   const [paidTarget, setPaidTarget]       = useState<InvoiceRow | null>(null);
   const [deleteTarget, setDeleteTarget]   = useState<InvoiceRow | null>(null);
   const [downloading, setDownloading]     = useState<string | null>(null);
+  const [currency, setCurrency]           = useState<"HUF" | "EUR">("HUF");
+  const [eurRate, setEurRate]             = useState<number>(1 / 400);
 
   const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
   const MONTHS = Array.from({ length: 18 }, (_, i) => {
@@ -146,7 +142,21 @@ export default function InvoicesPage() {
     void getInvoiceStats().then((s) => { if (s) setStats(s); });
     supabase.from("clients").select("id, first_name, last_name").is("deleted_at", null).order("last_name")
       .then(({ data }) => setClients((data ?? []) as typeof clients));
+    fetch("/api/exchange-rate")
+      .then((r) => r.json() as Promise<{ rate?: number }>)
+      .then((d) => { if (d.rate) setEurRate(d.rate); })
+      .catch(() => {});
   }, []);
+
+  const fmt = useCallback(
+    (n: number | null | undefined): string => {
+      if (n == null) return currency === "EUR" ? "€ —" : "— Ft";
+      return currency === "EUR"
+        ? new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n * eurRate)
+        : new Intl.NumberFormat("hu-HU", { style: "currency", currency: "HUF", maximumFractionDigits: 0 }).format(n);
+    },
+    [currency, eurRate],
+  );
 
   // Outstanding amount of current visible rows
   const today = new Date().toISOString().slice(0, 10);
@@ -220,10 +230,24 @@ export default function InvoicesPage() {
         }
       />
 
-      <StatsRow stats={stats} />
+      <StatsRow stats={stats} fmt={fmt} />
 
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex rounded-md border border-zinc-200 p-0.5">
+          {(["HUF", "EUR"] as const).map((c) => (
+            <button
+              key={c}
+              onClick={() => setCurrency(c)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                currency === c ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-900",
+              )}
+            >
+              {c === "HUF" ? "Ft" : "€ EUR"}
+            </button>
+          ))}
+        </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="h-9 w-36">
             <SelectValue />
@@ -324,7 +348,7 @@ export default function InvoicesPage() {
                   <DueDateCell due={inv.due_date} status={inv.status} />
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-zinc-900">
-                  {fmtEur(inv.total)}
+                  {fmt(inv.total)}
                 </td>
                 <td className="px-4 py-3">
                   <InvoiceStatusBadge status={inv.status} />
@@ -374,7 +398,7 @@ export default function InvoicesPage() {
             <tfoot>
               <tr className="border-t-2 border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-600">
                 <td colSpan={4} className="px-4 py-3">Kintlévő összesen (szűrt nézet)</td>
-                <td className="px-4 py-3 text-right text-zinc-900">{fmtEur(outstandingVisible)}</td>
+                <td className="px-4 py-3 text-right text-zinc-900">{fmt(outstandingVisible)}</td>
                 <td colSpan={2} />
               </tr>
             </tfoot>
