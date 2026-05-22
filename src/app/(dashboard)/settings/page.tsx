@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle, Building2, CreditCard, Bell,
   Percent, ShieldCheck, Upload, Trash2, Loader2,
-  Eye, EyeOff, CheckCircle, Info,
+  Eye, EyeOff, CheckCircle, Info, Tag, Plus, Pencil, X, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -175,11 +175,12 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="company">
         <TabsList className="mb-6 flex-wrap h-auto gap-1">
-          <TabsTrigger value="company"   className="gap-1.5"><Building2   className="h-3.5 w-3.5" />Céges adatok</TabsTrigger>
-          <TabsTrigger value="billing"   className="gap-1.5"><CreditCard  className="h-3.5 w-3.5" />Számlázás</TabsTrigger>
-          <TabsTrigger value="notifs"    className="gap-1.5"><Bell        className="h-3.5 w-3.5" />Értesítések</TabsTrigger>
-          <TabsTrigger value="discounts" className="gap-1.5"><Percent     className="h-3.5 w-3.5" />Kedvezmény szintek</TabsTrigger>
-          <TabsTrigger value="security"  className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Biztonság</TabsTrigger>
+          <TabsTrigger value="company"    className="gap-1.5"><Building2   className="h-3.5 w-3.5" />Céges adatok</TabsTrigger>
+          <TabsTrigger value="billing"    className="gap-1.5"><CreditCard  className="h-3.5 w-3.5" />Számlázás</TabsTrigger>
+          <TabsTrigger value="notifs"     className="gap-1.5"><Bell        className="h-3.5 w-3.5" />Értesítések</TabsTrigger>
+          <TabsTrigger value="discounts"  className="gap-1.5"><Percent     className="h-3.5 w-3.5" />Kedvezmény szintek</TabsTrigger>
+          <TabsTrigger value="categories" className="gap-1.5"><Tag         className="h-3.5 w-3.5" />Kategóriák</TabsTrigger>
+          <TabsTrigger value="security"   className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Biztonság</TabsTrigger>
         </TabsList>
 
         {/* ── TAB 1: Céges adatok ──────────────────────────────────────── */}
@@ -202,7 +203,12 @@ export default function SettingsPage() {
           <DiscountsTab get={get} set={set} saveKeys={saveKeys} />
         </TabsContent>
 
-        {/* ── TAB 5: Biztonság ─────────────────────────────────────────── */}
+        {/* ── TAB 5: Kategóriák ──────────────────────────────────────── */}
+        <TabsContent value="categories">
+          <CategoriesTab />
+        </TabsContent>
+
+        {/* ── TAB 6: Biztonság ─────────────────────────────────────────── */}
         <TabsContent value="security">
           <SecurityTab
             userEmail={userEmail}
@@ -1095,5 +1101,298 @@ function Criterion({ met, label }: { met: boolean; label: string }) {
       <CheckCircle className={cn("h-3 w-3 flex-shrink-0", met ? "opacity-100" : "opacity-30")} />
       {label}
     </li>
+  );
+}
+
+// ─── TAB 6: Kategóriák & Típusok ─────────────────────────────────────────────
+
+interface LookupOption {
+  id: string;
+  category: string;
+  value: string;
+  label: string;
+  color: string;
+  sort_order: number;
+  is_system: boolean;
+}
+
+const CATEGORY_META: { key: string; label: string; description: string }[] = [
+  { key: "trip_status",         label: "Utazás státuszok",     description: "Az utazások állapota (tervezett, hirdetve stb.)" },
+  { key: "booking_status",      label: "Foglalás státuszok",   description: "A foglalások állapota (érdeklődő, lefoglalt stb.)" },
+  { key: "client_source",       label: "Ügyfél forrása",       description: "Honnan érkezett az ügyfél (Messenger, Weboldal stb.)" },
+  { key: "cost_category",       label: "Kiadás kategóriák",    description: "Utazásonkénti kiadások besorolása" },
+  { key: "invoice_status",      label: "Számla státuszok",     description: "Számlák állapota (vázlat, elküldve, fizetve stb.)" },
+  { key: "payment_type",        label: "Fizetés típusok",      description: "Előleg, teljes összeg, részlet vagy visszatérítés" },
+  { key: "email_template_type", label: "Email sablon típusok", description: "Email sablonok kategóriái" },
+];
+
+const PRESET_COLORS = [
+  { label: "Szürke",   value: "bg-zinc-100 text-zinc-600" },
+  { label: "Kék",     value: "bg-blue-100 text-blue-700" },
+  { label: "Égkék",   value: "bg-sky-100 text-sky-700" },
+  { label: "Lila",    value: "bg-violet-100 text-violet-700" },
+  { label: "Bíbor",   value: "bg-purple-100 text-purple-700" },
+  { label: "Zöld",    value: "bg-green-100 text-green-700" },
+  { label: "Citrom",  value: "bg-yellow-100 text-yellow-700" },
+  { label: "Narancs", value: "bg-orange-100 text-orange-700" },
+  { label: "Rózsaszín",value: "bg-pink-100 text-pink-700" },
+  { label: "Piros",   value: "bg-red-100 text-red-600" },
+  { label: "Palaszürke", value: "bg-slate-100 text-slate-600" },
+];
+
+function ColorDot({ color }: { color: string }) {
+  const bg = color.split(" ")[0] ?? "bg-zinc-100";
+  return <span className={cn("inline-block h-3 w-3 rounded-full border border-white shadow-sm", bg)} />;
+}
+
+function CategoriesTab() {
+  const [options, setOptions]     = useState<LookupOption[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [editId, setEditId]       = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editColor, setEditColor] = useState("");
+  const [saving, setSaving]       = useState(false);
+
+  // Per-category add-row state: { [category]: { value, label, color, open } }
+  const [addState, setAddState]   = useState<Record<string, { value: string; label: string; color: string; open: boolean }>>({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/lookup-options");
+    if (res.ok) {
+      const data = (await res.json()) as LookupOption[];
+      setOptions(data);
+    } else {
+      toast.error("Nem sikerült betölteni a kategóriákat.");
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  function startEdit(opt: LookupOption) {
+    setEditId(opt.id);
+    setEditLabel(opt.label);
+    setEditColor(opt.color);
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setEditLabel("");
+    setEditColor("");
+  }
+
+  async function saveEdit(id: string) {
+    if (!editLabel.trim()) { toast.error("A megnevezés nem lehet üres."); return; }
+    setSaving(true);
+    const res = await fetch(`/api/lookup-options/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: editLabel.trim(), color: editColor }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const err = (await res.json()) as { error?: string };
+      toast.error(err.error ?? "Mentési hiba.");
+      return;
+    }
+    const updated = (await res.json()) as LookupOption;
+    setOptions((prev) => prev.map((o) => (o.id === id ? updated : o)));
+    cancelEdit();
+    toast.success("Mentve.");
+  }
+
+  async function deleteOption(id: string) {
+    const res = await fetch(`/api/lookup-options/${id}`, { method: "DELETE" });
+    if (res.status === 403) { toast.error("Rendszer-értéket nem lehet törölni."); return; }
+    if (!res.ok) { toast.error("Törlési hiba."); return; }
+    setOptions((prev) => prev.filter((o) => o.id !== id));
+    toast.success("Törölve.");
+  }
+
+  function getAddState(cat: string) {
+    return addState[cat] ?? { value: "", label: "", color: "bg-zinc-100 text-zinc-600", open: false };
+  }
+
+  function patchAdd(cat: string, patch: Partial<{ value: string; label: string; color: string; open: boolean }>) {
+    setAddState((prev) => ({ ...prev, [cat]: { ...getAddState(cat), ...patch } }));
+  }
+
+  async function submitAdd(cat: string) {
+    const s = getAddState(cat);
+    if (!s.value.trim() || !s.label.trim()) { toast.error("A kód és megnevezés kötelező."); return; }
+    if (!/^[a-z0-9_]+$/.test(s.value.trim())) {
+      toast.error("A kód csak kisbetűket, számokat és aláhúzást tartalmazhat.");
+      return;
+    }
+    setSaving(true);
+    const res = await fetch("/api/lookup-options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: cat, value: s.value.trim(), label: s.label.trim(), color: s.color }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const err = (await res.json()) as { error?: string };
+      toast.error(err.error ?? "Hiba.");
+      return;
+    }
+    const created = (await res.json()) as LookupOption;
+    setOptions((prev) => [...prev, created]);
+    patchAdd(cat, { value: "", label: "", color: "bg-zinc-100 text-zinc-600", open: false });
+    toast.success("Hozzáadva.");
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-32 items-center justify-center text-sm text-zinc-400">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Betöltés…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 max-w-3xl">
+      <p className="text-sm text-zinc-500">
+        Szerkeszd a kategóriák megnevezését és jelölőszínét, vagy hozz létre saját értékeket.
+        A rendszer által használt értékeket (rendszer-sor) <strong>nem lehet törölni</strong>,
+        de a megnevezésük és színük szabadon módosítható.
+      </p>
+
+      {CATEGORY_META.map(({ key, label: catLabel, description }) => {
+        const rows = options.filter((o) => o.category === key);
+        const add  = getAddState(key);
+        return (
+          <div key={key} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+            {/* Category header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 border-b border-zinc-200">
+              <div>
+                <p className="text-sm font-semibold text-zinc-900">{catLabel}</p>
+                <p className="text-xs text-zinc-500">{description}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => patchAdd(key, { open: !add.open })}
+              >
+                <Plus className="h-3 w-3" />
+                Új
+              </Button>
+            </div>
+
+            {/* Option rows */}
+            <div className="divide-y divide-zinc-100">
+              {rows.length === 0 && (
+                <p className="px-4 py-3 text-xs text-zinc-400">Nincsenek értékek.</p>
+              )}
+              {rows.map((opt) => (
+                <div key={opt.id} className="flex items-center gap-3 px-4 py-2.5">
+                  {editId === opt.id ? (
+                    // ── Edit mode ───────────────────────────────────────────
+                    <>
+                      <ColorDot color={editColor} />
+                      <Input
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        className="h-7 text-sm flex-1"
+                        placeholder="Megnevezés"
+                        onKeyDown={(e) => { if (e.key === "Enter") void saveEdit(opt.id); if (e.key === "Escape") cancelEdit(); }}
+                        autoFocus
+                      />
+                      <Select value={editColor} onValueChange={setEditColor}>
+                        <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectValue placeholder="Szín" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRESET_COLORS.map((c) => (
+                            <SelectItem key={c.value} value={c.value}>
+                              <span className="flex items-center gap-1.5">
+                                <ColorDot color={c.value} />
+                                {c.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" disabled={saving} onClick={() => void saveEdit(opt.id)}>
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-zinc-400" onClick={cancelEdit}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    // ── View mode ───────────────────────────────────────────
+                    <>
+                      <ColorDot color={opt.color} />
+                      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", opt.color)}>
+                        {opt.label}
+                      </span>
+                      <span className="text-xs text-zinc-400 font-mono">{opt.value}</span>
+                      {opt.is_system && (
+                        <span className="ml-auto text-[10px] text-zinc-400 border border-zinc-200 rounded px-1.5 py-0.5">rendszer</span>
+                      )}
+                      <div className={cn("flex gap-1", opt.is_system ? "" : "ml-auto")}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(opt)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {!opt.is_system && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-600" onClick={() => void deleteOption(opt.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add new row (inline form) */}
+            {add.open && (
+              <div className="flex items-center gap-2 px-4 py-3 border-t border-dashed border-zinc-200 bg-zinc-50">
+                <Plus className="h-3.5 w-3.5 text-zinc-400 flex-shrink-0" />
+                <Input
+                  placeholder="kód (pl. hotel)"
+                  value={add.value}
+                  onChange={(e) => patchAdd(key, { value: e.target.value })}
+                  className="h-7 text-sm w-32 font-mono"
+                />
+                <Input
+                  placeholder="Megnevezés"
+                  value={add.label}
+                  onChange={(e) => patchAdd(key, { label: e.target.value })}
+                  className="h-7 text-sm flex-1"
+                  onKeyDown={(e) => { if (e.key === "Enter") void submitAdd(key); }}
+                />
+                <Select value={add.color} onValueChange={(v) => patchAdd(key, { color: v })}>
+                  <SelectTrigger className="h-7 w-36 text-xs">
+                    <SelectValue placeholder="Szín" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRESET_COLORS.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        <span className="flex items-center gap-1.5">
+                          <ColorDot color={c.value} />
+                          {c.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700" disabled={saving} onClick={() => void submitAdd(key)}>
+                  Hozzáad
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => patchAdd(key, { open: false })}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

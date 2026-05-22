@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -27,34 +27,34 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { Trip, TripStatus } from "@/types";
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 24;
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - 2 + i);
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "all",        label: "Ă–sszes stĂˇtusz" },
+  { value: "all",        label: "Összes státusz" },
   { value: "planned",    label: "Tervezett" },
   { value: "advertised", label: "Hirdetve" },
-  { value: "full",       label: "TelĂ­tett" },
+  { value: "full",       label: "Telített" },
   { value: "ongoing",    label: "Folyamatban" },
-  { value: "completed",  label: "LezĂˇrt" },
-  { value: "cancelled",  label: "TĂ¶rĂ¶lve" },
+  { value: "completed",  label: "Lezárt" },
+  { value: "cancelled",  label: "Törölve" },
 ];
 
-// â”€â”€â”€ Table column definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Table column definitions ─────────────────────────────────────────────────
 
 const TABLE_COLUMNS: Column<Trip>[] = [
   {
     key: "trip_code",
-    header: "KĂłd",
+    header: "Kód",
     className: "font-mono text-xs text-zinc-500 w-28",
     render: (v) => String(v),
   },
   {
     key: "name",
-    header: "NĂ©v",
+    header: "Név",
     sortable: true,
     render: (_, row) => (
       <Link
@@ -67,17 +67,17 @@ const TABLE_COLUMNS: Column<Trip>[] = [
   },
   {
     key: "departure_date",
-    header: "DĂˇtum",
+    header: "Dátum",
     sortable: true,
     render: (_, row) => (
       <span className="text-zinc-600">
-        {formatDate(row.departure_date)} â€“ {formatDate(row.return_date)}
+        {formatDate(row.departure_date)} – {formatDate(row.return_date)}
       </span>
     ),
   },
   {
     key: "current_bookings",
-    header: "KapacitĂˇs",
+    header: "Kapacitás",
     sortable: true,
     className: "w-36",
     render: (_, row) => {
@@ -94,12 +94,12 @@ const TABLE_COLUMNS: Column<Trip>[] = [
   },
   {
     key: "status",
-    header: "StĂˇtusz",
+    header: "Státusz",
     render: (v) => <TripStatusBadge status={v as TripStatus} />,
   },
   {
     key: "total_revenue",
-    header: "BevĂ©tel",
+    header: "Bevétel",
     sortable: true,
     className: "text-right",
     render: (v) => (
@@ -113,14 +113,14 @@ const TABLE_COLUMNS: Column<Trip>[] = [
     render: (_, row) => (
       <div className="flex items-center gap-1 justify-end">
         <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-          <Link href={`/trips/${row.id}`}>RĂ©szletek</Link>
+          <Link href={`/trips/${row.id}`}>Részletek</Link>
         </Button>
       </div>
     ),
   },
 ];
 
-// â”€â”€â”€ View toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── View toggle ──────────────────────────────────────────────────────────────
 
 type ViewMode = "card" | "table";
 
@@ -129,7 +129,7 @@ function getInitialView(): ViewMode {
   return (localStorage.getItem("trips-view") as ViewMode) ?? "card";
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TripsPage() {
   const { getTrips, loading } = useTrips();
@@ -155,7 +155,7 @@ export default function TripsPage() {
 
   useEffect(() => { setPage(1); }, [debouncedDestination, status, year]);
 
-  // Realtime subscription â€” refresh list when any trip's capacity changes
+  // Realtime subscription — refresh list when any trip's capacity changes
   useEffect(() => {
     const channel = supabase
       .channel("trips-capacity-realtime")
@@ -192,13 +192,13 @@ export default function TripsPage() {
   return (
     <div>
       <PageHeader
-        title="UtazĂˇsok"
-        subtitle={`${count.toLocaleString("hu-HU")} Ăşt Ă¶sszesen`}
+        title="Utazások"
+        subtitle={`${count.toLocaleString("hu-HU")} út összesen`}
         actions={
           <Button asChild className="bg-blue-600 hover:bg-blue-700">
             <Link href="/trips/new">
               <Plus className="mr-2 h-4 w-4" />
-              Ăšj utazĂˇs
+              Új utazás
             </Link>
           </Button>
         }
@@ -212,7 +212,7 @@ export default function TripsPage() {
           <Input
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            placeholder="Ăšti cĂ©l keresĂ©seâ€¦"
+            placeholder="Úti cél keresése…"
             className="pl-9 h-9"
           />
           {destination && (
@@ -243,14 +243,14 @@ export default function TripsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Minden Ă©v</SelectItem>
+            <SelectItem value="all">Minden év</SelectItem>
             {YEAR_OPTIONS.map((y) => (
               <SelectItem key={y} value={String(y)}>{y}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        {/* View toggle â€” pushed right */}
+        {/* View toggle — pushed right */}
         <div className="ml-auto flex items-center rounded-md border border-zinc-200 p-0.5">
           {(["card", "table"] as const).map((v) => (
             <button
@@ -262,7 +262,7 @@ export default function TripsPage() {
                   ? "bg-zinc-900 text-white"
                   : "text-zinc-400 hover:text-zinc-700"
               )}
-              aria-label={v === "card" ? "KĂˇrtya nĂ©zet" : "TĂˇbla nĂ©zet"}
+              aria-label={v === "card" ? "Kártya nézet" : "Tábla nézet"}
             >
               {v === "card" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
             </button>
@@ -282,13 +282,13 @@ export default function TripsPage() {
           ) : showEmpty ? (
             <EmptyState
               icon={Plane}
-              title="Nincs talĂˇlat"
-              description="PrĂłbĂˇlj mĂˇs szĹ±rĹ‘ket, vagy hozz lĂ©tre Ăşj utazĂˇst."
+              title="Nincs találat"
+              description="Próbálj más szűrőket, vagy hozz létre új utazást."
               action={
                 <Button asChild className="bg-blue-600 hover:bg-blue-700">
                   <Link href="/trips/new">
                     <Plus className="mr-2 h-4 w-4" />
-                    Ăšj utazĂˇs
+                    Új utazás
                   </Link>
                 </Button>
               }
@@ -310,7 +310,7 @@ export default function TripsPage() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
-                ElĹ‘zĹ‘
+                Előző
               </Button>
               <span className="text-sm text-zinc-500">
                 {page} / {Math.ceil(count / PAGE_SIZE)}
@@ -321,7 +321,7 @@ export default function TripsPage() {
                 disabled={page >= Math.ceil(count / PAGE_SIZE)}
                 onClick={() => setPage((p) => p + 1)}
               >
-                KĂ¶vetkezĹ‘
+                Következő
               </Button>
             </div>
           )}
@@ -352,8 +352,8 @@ export default function TripsPage() {
             total: count,
             onPageChange: setPage,
           }}
-          emptyTitle="Nincs talĂˇlat"
-          emptyDescription="PrĂłbĂˇlj mĂˇs szĹ±rĹ‘ket, vagy hozz lĂ©tre Ăşj utazĂˇst."
+          emptyTitle="Nincs találat"
+          emptyDescription="Próbálj más szűrőket, vagy hozz létre új utazást."
           emptyIcon={Plane}
         />
       )}
