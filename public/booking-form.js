@@ -408,6 +408,12 @@
               cfg.onSuccess(res.data.bookingCode || null);
             }
 
+          } else if (res.status === 409) {
+            // ── CAPACITY FULL ──────────────────────────────────────────────
+            var fullMsg = (res.data && res.data.message) || 'Ez az utazás sajnos már megtelt.';
+            showBanner(form, '⚠ ' + fullMsg, 'error');
+            if (typeof cfg.onError === 'function') cfg.onError('capacity_full', res.data);
+
           } else if (res.status === 429) {
             // ── RATE LIMIT ─────────────────────────────────────────────────
             showBanner(form, '⏱ ' + MSG.rateLimit, 'warning');

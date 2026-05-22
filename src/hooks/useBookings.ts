@@ -201,6 +201,23 @@ export function useBookings() {
   const createBooking = useCallback(
     (values: BookingFormValues): Promise<Booking | null> => {
       return run(async () => {
+        // ── Capacity guard ──────────────────────────────────────────────────
+        if (values.trip_id) {
+          const { data: tripCap } = await supabase
+            .from("trips")
+            .select("max_capacity, current_bookings, status, name")
+            .eq("id", values.trip_id)
+            .single();
+          if (tripCap) {
+            const t = tripCap as { max_capacity: number; current_bookings: number; status: string; name: string };
+            if (t.status === "full" || t.current_bookings >= t.max_capacity) {
+              throw new Error(
+                `"${t.name}" utazás megtelt (${t.current_bookings}/${t.max_capacity}). Foglalás nem hozható létre.`,
+              );
+            }
+          }
+        }
+
         const { data, error: sbErr } = await supabase
           .from("bookings")
           .insert({

@@ -294,7 +294,17 @@ export async function POST(request: Request): Promise<Response> {
         .maybeSingle();
       matchedTrip = (tripData as Trip | null) ?? null;
     }
-
+    // ── STEP 4a: Capacity check ───────────────────────────────────────────────
+    if (matchedTrip && (matchedTrip.status === "full" || matchedTrip.current_bookings >= matchedTrip.max_capacity)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Ez az utazás sajnos már megtelt. Kérjük, hívjon minket vagy válasszon másik utazást!",
+        },
+        { status: 409, headers: hdrs },
+      );
+    }
     // ── STEP 4b: Create booking ────────────────────────────────────────────
     const notesParts = [
       message ? `Üzenet: ${message}` : null,

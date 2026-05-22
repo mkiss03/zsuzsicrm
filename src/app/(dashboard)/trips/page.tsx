@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -6,6 +6,7 @@ import { Plus, LayoutGrid, List, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { useTrips, type TripListParams } from "@/hooks/useTrips";
+import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TripCard, TripCardSkeleton } from "@/components/trips/TripCard";
 import { DataTable, type Column } from "@/components/shared/DataTable";
@@ -26,34 +27,34 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { Trip, TripStatus } from "@/types";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PAGE_SIZE = 24;
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - 2 + i);
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "all",        label: "Összes státusz" },
+  { value: "all",        label: "Ă–sszes stĂˇtusz" },
   { value: "planned",    label: "Tervezett" },
   { value: "advertised", label: "Hirdetve" },
-  { value: "full",       label: "Telített" },
+  { value: "full",       label: "TelĂ­tett" },
   { value: "ongoing",    label: "Folyamatban" },
-  { value: "completed",  label: "Lezárt" },
-  { value: "cancelled",  label: "Törölve" },
+  { value: "completed",  label: "LezĂˇrt" },
+  { value: "cancelled",  label: "TĂ¶rĂ¶lve" },
 ];
 
-// ─── Table column definitions ─────────────────────────────────────────────────
+// â”€â”€â”€ Table column definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TABLE_COLUMNS: Column<Trip>[] = [
   {
     key: "trip_code",
-    header: "Kód",
+    header: "KĂłd",
     className: "font-mono text-xs text-zinc-500 w-28",
     render: (v) => String(v),
   },
   {
     key: "name",
-    header: "Név",
+    header: "NĂ©v",
     sortable: true,
     render: (_, row) => (
       <Link
@@ -66,17 +67,17 @@ const TABLE_COLUMNS: Column<Trip>[] = [
   },
   {
     key: "departure_date",
-    header: "Dátum",
+    header: "DĂˇtum",
     sortable: true,
     render: (_, row) => (
       <span className="text-zinc-600">
-        {formatDate(row.departure_date)} – {formatDate(row.return_date)}
+        {formatDate(row.departure_date)} â€“ {formatDate(row.return_date)}
       </span>
     ),
   },
   {
     key: "current_bookings",
-    header: "Kapacitás",
+    header: "KapacitĂˇs",
     sortable: true,
     className: "w-36",
     render: (_, row) => {
@@ -93,12 +94,12 @@ const TABLE_COLUMNS: Column<Trip>[] = [
   },
   {
     key: "status",
-    header: "Státusz",
+    header: "StĂˇtusz",
     render: (v) => <TripStatusBadge status={v as TripStatus} />,
   },
   {
     key: "total_revenue",
-    header: "Bevétel",
+    header: "BevĂ©tel",
     sortable: true,
     className: "text-right",
     render: (v) => (
@@ -112,14 +113,14 @@ const TABLE_COLUMNS: Column<Trip>[] = [
     render: (_, row) => (
       <div className="flex items-center gap-1 justify-end">
         <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-          <Link href={`/trips/${row.id}`}>Részletek</Link>
+          <Link href={`/trips/${row.id}`}>RĂ©szletek</Link>
         </Button>
       </div>
     ),
   },
 ];
 
-// ─── View toggle ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ View toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ViewMode = "card" | "table";
 
@@ -128,15 +129,17 @@ function getInitialView(): ViewMode {
   return (localStorage.getItem("trips-view") as ViewMode) ?? "card";
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function TripsPage() {
   const { getTrips, loading } = useTrips();
+  const supabase = createClient();
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<ViewMode>(getInitialView);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Filters
   const [destination, setDestination] = useState("");
@@ -152,6 +155,20 @@ export default function TripsPage() {
 
   useEffect(() => { setPage(1); }, [debouncedDestination, status, year]);
 
+  // Realtime subscription â€” refresh list when any trip's capacity changes
+  useEffect(() => {
+    const channel = supabase
+      .channel("trips-capacity-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "trips" },
+        () => setRefreshKey((k) => k + 1),
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const params: TripListParams = {
       page,
@@ -165,9 +182,7 @@ export default function TripsPage() {
     void getTrips(params).then((res) => {
       if (res) { setTrips(res.data); setCount(res.count); }
     });
-  }, [page, debouncedDestination, status, year]);
-
-  // Persist view mode
+  }, [page, debouncedDestination, status, year, refreshKey]);
   useEffect(() => {
     localStorage.setItem("trips-view", view);
   }, [view]);
@@ -177,13 +192,13 @@ export default function TripsPage() {
   return (
     <div>
       <PageHeader
-        title="Utazások"
-        subtitle={`${count.toLocaleString("hu-HU")} út összesen`}
+        title="UtazĂˇsok"
+        subtitle={`${count.toLocaleString("hu-HU")} Ăşt Ă¶sszesen`}
         actions={
           <Button asChild className="bg-blue-600 hover:bg-blue-700">
             <Link href="/trips/new">
               <Plus className="mr-2 h-4 w-4" />
-              Új utazás
+              Ăšj utazĂˇs
             </Link>
           </Button>
         }
@@ -197,7 +212,7 @@ export default function TripsPage() {
           <Input
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            placeholder="Úti cél keresése…"
+            placeholder="Ăšti cĂ©l keresĂ©seâ€¦"
             className="pl-9 h-9"
           />
           {destination && (
@@ -228,14 +243,14 @@ export default function TripsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Minden év</SelectItem>
+            <SelectItem value="all">Minden Ă©v</SelectItem>
             {YEAR_OPTIONS.map((y) => (
               <SelectItem key={y} value={String(y)}>{y}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        {/* View toggle — pushed right */}
+        {/* View toggle â€” pushed right */}
         <div className="ml-auto flex items-center rounded-md border border-zinc-200 p-0.5">
           {(["card", "table"] as const).map((v) => (
             <button
@@ -247,7 +262,7 @@ export default function TripsPage() {
                   ? "bg-zinc-900 text-white"
                   : "text-zinc-400 hover:text-zinc-700"
               )}
-              aria-label={v === "card" ? "Kártya nézet" : "Tábla nézet"}
+              aria-label={v === "card" ? "KĂˇrtya nĂ©zet" : "TĂˇbla nĂ©zet"}
             >
               {v === "card" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
             </button>
@@ -267,13 +282,13 @@ export default function TripsPage() {
           ) : showEmpty ? (
             <EmptyState
               icon={Plane}
-              title="Nincs találat"
-              description="Próbálj más szűrőket, vagy hozz létre új utazást."
+              title="Nincs talĂˇlat"
+              description="PrĂłbĂˇlj mĂˇs szĹ±rĹ‘ket, vagy hozz lĂ©tre Ăşj utazĂˇst."
               action={
                 <Button asChild className="bg-blue-600 hover:bg-blue-700">
                   <Link href="/trips/new">
                     <Plus className="mr-2 h-4 w-4" />
-                    Új utazás
+                    Ăšj utazĂˇs
                   </Link>
                 </Button>
               }
@@ -295,7 +310,7 @@ export default function TripsPage() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Előző
+                ElĹ‘zĹ‘
               </Button>
               <span className="text-sm text-zinc-500">
                 {page} / {Math.ceil(count / PAGE_SIZE)}
@@ -306,7 +321,7 @@ export default function TripsPage() {
                 disabled={page >= Math.ceil(count / PAGE_SIZE)}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Következő
+                KĂ¶vetkezĹ‘
               </Button>
             </div>
           )}
@@ -337,8 +352,8 @@ export default function TripsPage() {
             total: count,
             onPageChange: setPage,
           }}
-          emptyTitle="Nincs találat"
-          emptyDescription="Próbálj más szűrőket, vagy hozz létre új utazást."
+          emptyTitle="Nincs talĂˇlat"
+          emptyDescription="PrĂłbĂˇlj mĂˇs szĹ±rĹ‘ket, vagy hozz lĂ©tre Ăşj utazĂˇst."
           emptyIcon={Plane}
         />
       )}

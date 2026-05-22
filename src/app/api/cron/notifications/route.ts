@@ -199,12 +199,12 @@ export async function GET(request: Request): Promise<Response> {
     }
   }
 
-  // ── 5. LOW CAPACITY — 2 or fewer spots remaining ────────────────────────────
+  // ── 5. LOW CAPACITY — ≤2 spots remaining OR ≥80% occupancy ─────────────────
   {
     const { data: fullishTrips } = await supabase
       .from("trips")
       .select("id, name, max_capacity, current_bookings")
-      .eq("status", "advertised")
+      .in("status", ["advertised", "full"])
       .is("deleted_at", null);
 
     for (const t of fullishTrips ?? []) {
@@ -215,13 +215,30 @@ export async function GET(request: Request): Promise<Response> {
         current_bookings: number;
       };
       const spotsLeft = trip.max_capacity - trip.current_bookings;
-      if (spotsLeft > 2 || spotsLeft < 0) continue;
+      if (spotsLeft < 0) continue;
+
+      let title: string;
+      let message: string;
+
+      if (spotsLeft === 0) {
+        title = `Telt ház – ${trip.name}`;
+        message = `Az utazás megtelt (${trip.current_bookings}/${trip.max_capacity}).`;
+      } else if (spotsLeft <= 2) {
+        title = `Szinte telt ház – ${trip.name}`;
+        message = `Csak ${spotsLeft} szabad hely maradt (${trip.current_bookings}/${trip.max_capacity} foglalt).`;
+      } else if (trip.max_capacity >= 5 && trip.current_bookings / trip.max_capacity >= 0.8) {
+        title = `Hamarosan megtelik – ${trip.name}`;
+        const pct = Math.round((trip.current_bookings / trip.max_capacity) * 100);
+        message = `Az utazás ${pct}%-os telítettségű (${trip.current_bookings}/${trip.max_capacity} foglalt, ${spotsLeft} szabad hely).`;
+      } else {
+        continue;
+      }
 
       const inserted = await insertNotification(
         supabase,
         "low_capacity",
-        `Szinte telt ház – ${trip.name}`,
-        `Csak ${spotsLeft} szabad hely maradt (${trip.current_bookings}/${trip.max_capacity} foglalt).`,
+        title,
+        message,
         trip.id,
         "trip",
       );
