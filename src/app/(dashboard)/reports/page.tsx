@@ -44,12 +44,6 @@ const YEAR_NOW = new Date().getFullYear();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtEur(n: number): string {
-  return new Intl.NumberFormat("de-AT", {
-    style: "currency", currency: "EUR", maximumFractionDigits: 0,
-  }).format(n);
-}
-
 function Placeholder() {
   return (
     <div className="space-y-3">
@@ -90,25 +84,9 @@ function getRange(quick: QuickRange, customFrom: string, customTo: string): { fr
   return { from: customFrom, to: customTo };
 }
 
-// ─── Shared chart tooltips ────────────────────────────────────────────────────
-
-function RevenueTooltip({ active, payload, label }: TooltipProps<number, string>) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 shadow-sm text-xs space-y-1">
-      <p className="font-semibold text-zinc-900">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}: {fmtEur(p.value as number)}
-        </p>
-      ))}
-    </div>
-  );
-}
-
 // ─── Tab 1: Financial report ──────────────────────────────────────────────────
 
-function FinancialTab() {
+function FinancialTab({ fmt, yFmt }: { fmt: (n: number) => string; yFmt: (v: number) => string }) {
   const { getRevenueVsCosts, getSummaryStats, getTripProfitability } = useReports();
 
   const [quick, setQuick]       = useState<QuickRange>("year");
@@ -183,10 +161,10 @@ function FinancialTab() {
           {stats && (
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               {[
-                { label: "Bevétel",          value: fmtEur(stats.totalRevenue),    color: "text-blue-600" },
-                { label: "Kiadás",           value: fmtEur(stats.totalCosts),      color: "text-red-500" },
-                { label: "Nyereség",         value: fmtEur(stats.profit),          color: stats.profit >= 0 ? "text-green-600" : "text-red-500" },
-                { label: "Átlag fogl. érték", value: fmtEur(stats.avgBookingValue), color: "text-zinc-700" },
+                { label: "Bevétel",          value: fmt(stats.totalRevenue),    color: "text-blue-600" },
+                { label: "Kiadás",           value: fmt(stats.totalCosts),      color: "text-red-500" },
+                { label: "Nyereség",         value: fmt(stats.profit),          color: stats.profit >= 0 ? "text-green-600" : "text-red-500" },
+                { label: "Átlag fogl. érték", value: fmt(stats.avgBookingValue), color: "text-zinc-700" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-md border border-zinc-200 bg-white p-4">
                   <p className="text-xs text-zinc-500 mb-1 uppercase tracking-wide">{label}</p>
@@ -220,8 +198,18 @@ function FinancialTab() {
                   <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f4f4f5" />
                   <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false}
-                    tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} width={48} />
-                  <Tooltip content={<RevenueTooltip />} />
+                    tickFormatter={yFmt} width={60} />
+                  <Tooltip content={({ active, payload, label }: TooltipProps<number, string>) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 shadow-sm text-xs space-y-1">
+                        <p className="font-semibold text-zinc-900">{label}</p>
+                        {payload.map((p) => (
+                          <p key={p.name} style={{ color: p.color }}>{p.name}: {fmt(p.value as number)}</p>
+                        ))}
+                      </div>
+                    );
+                  }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
                   <Area type="monotone" dataKey="revenue" name="Bevétel" stroke={CHART_COLORS.revenue} fill="url(#gradRev)" strokeWidth={2} dot={false} />
                   <Area type="monotone" dataKey="costs"   name="Kiadás"  stroke={CHART_COLORS.costs}   fill="url(#gradCost)" strokeWidth={2} dot={false} />
@@ -256,10 +244,10 @@ function FinancialTab() {
                         </Link>
                         <p className="text-xs text-zinc-400">{t.destination}</p>
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-700">{fmtEur(t.revenue)}</td>
-                      <td className="px-4 py-3 text-right text-zinc-700">{fmtEur(t.costs)}</td>
+                      <td className="px-4 py-3 text-right text-zinc-700">{fmt(t.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-zinc-700">{fmt(t.costs)}</td>
                       <td className={cn("px-4 py-3 text-right font-medium", t.profit >= 0 ? "text-green-600" : "text-red-500")}>
-                        {fmtEur(t.profit)}
+                        {fmt(t.profit)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className={cn(
@@ -294,7 +282,7 @@ function FinancialTab() {
 
 // ─── Tab 2: Client report ─────────────────────────────────────────────────────
 
-function ClientTab() {
+function ClientTab({ fmt }: { fmt: (n: number) => string }) {
   const { getClientStats, getTopClients } = useReports();
 
   const [loading, setLoading]     = useState(true);
@@ -461,7 +449,7 @@ function ClientTab() {
                       </td>
                       <td className="px-3 py-2 text-right text-xs text-zinc-600">{c.trip_count}</td>
                       <td className="px-3 py-2 text-right text-xs font-semibold text-zinc-900">
-                        {fmtEur(c.total_spent)}
+                        {fmt(c.total_spent)}
                       </td>
                     </tr>
                   ))}
@@ -736,6 +724,35 @@ function SortHead<T>({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const [currency, setCurrency] = useState<"HUF" | "EUR">("HUF");
+  const [eurRate, setEurRate]   = useState<number>(1 / 400);
+
+  useEffect(() => {
+    fetch("/api/exchange-rate")
+      .then((r) => r.json() as Promise<{ rate?: number }>)
+      .then((d) => { if (d.rate) setEurRate(d.rate); })
+      .catch(() => {});
+  }, []);
+
+  const fmt = useCallback(
+    (n: number) =>
+      currency === "EUR"
+        ? new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n * eurRate)
+        : new Intl.NumberFormat("hu-HU", { style: "currency", currency: "HUF", maximumFractionDigits: 0 }).format(n),
+    [currency, eurRate],
+  );
+
+  const yFmt = useCallback(
+    (v: number) => {
+      if (currency === "EUR") {
+        const eur = v * eurRate;
+        return eur >= 1000 ? `€${(eur / 1000).toFixed(0)}k` : `€${Math.round(eur)}`;
+      }
+      return v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M Ft` : `${(v / 1_000).toFixed(0)}e Ft`;
+    },
+    [currency, eurRate],
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -743,12 +760,28 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-zinc-900">Riportok</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Pénzügyek, ügyfelek és utazások elemzése</p>
         </div>
-        <Link href="/reports/roadmap">
-          <Button variant="outline" size="sm">
-            <CalendarRange className="mr-2 h-4 w-4" />
-            Naptár nézet
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-md border border-zinc-200 p-0.5">
+            {(["HUF", "EUR"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCurrency(c)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                  currency === c ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-900",
+                )}
+              >
+                {c === "HUF" ? "Ft" : "€ EUR"}
+              </button>
+            ))}
+          </div>
+          <Link href="/reports/roadmap">
+            <Button variant="outline" size="sm">
+              <CalendarRange className="mr-2 h-4 w-4" />
+              Naptár nézet
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs defaultValue="financial">
@@ -771,8 +804,8 @@ export default function ReportsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="financial"><FinancialTab /></TabsContent>
-        <TabsContent value="clients"><ClientTab /></TabsContent>
+        <TabsContent value="financial"><FinancialTab fmt={fmt} yFmt={yFmt} /></TabsContent>
+        <TabsContent value="clients"><ClientTab fmt={fmt} /></TabsContent>
         <TabsContent value="trips"><TripTab /></TabsContent>
         <TabsContent value="export"><ExportTab /></TabsContent>
       </Tabs>
