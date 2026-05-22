@@ -11,7 +11,6 @@ import {
   AlertCircle,
   TrendingUp,
   Eye,
-  Pencil,
   Trash2,
   MoreHorizontal,
   Search,
@@ -279,9 +278,6 @@ export default function BookingsPage() {
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => router.push(`/bookings/${row.id}`)}>
               <Eye className="mr-2 h-4 w-4" />Megtekint
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push(`/bookings/${row.id}/edit`)}>
-              <Pencil className="mr-2 h-4 w-4" />Szerkeszt
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

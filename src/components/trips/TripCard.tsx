@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Users, TrendingUp, Pencil } from "lucide-react";
+import { CalendarDays, Users, TrendingUp } from "lucide-react";
 import { TripStatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -130,12 +130,6 @@ export function TripCard({ trip }: TripCardProps) {
       <div className="flex items-center gap-2 border-t border-zinc-100 px-5 py-3">
         <Button asChild size="sm" className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs h-8">
           <Link href={`/trips/${trip.id}`}>Részletek</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline" className="h-8 px-3">
-          <Link href={`/trips/${trip.id}/edit`}>
-            <Pencil className="h-3.5 w-3.5" />
-            <span className="sr-only">Szerkeszt</span>
-          </Link>
         </Button>
       </div>
     </div>
