@@ -190,8 +190,8 @@ function TableHeader() {
     <View style={S.tableHeaderRow}>
       <Text style={[S.colHead, S.cDesc]}>POSITION / TÉTEL</Text>
       <Text style={[S.colHead, S.cQty]}>DB</Text>
-      <Text style={[S.colHead, S.cUnitEur]}>EP EUR</Text>
-      <Text style={[S.colHead, S.cUnitHuf]}>EP HUF</Text>
+      <Text style={[S.colHead, S.cUnitEur]}>EGYSÉGÁR EUR</Text>
+      <Text style={[S.colHead, S.cUnitHuf]}>EGYSÉGÁR HUF</Text>
       <Text style={[S.colHead, S.cTotEur]}>GESAMT EUR</Text>
       <Text style={[S.colHead, S.cTotHuf]}>GESAMT HUF</Text>
     </View>
