@@ -261,9 +261,9 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
   const remainingEur    = rawTotal - totalAdvanceEur;
 
   const clientAddress = [
-    client.address_street,
-    [client.address_zip, client.address_city].filter(Boolean).join(" "),
     client.address_country,
+    [client.address_zip, client.address_city].filter(Boolean).join(" "),
+    client.address_street,
   ].filter(Boolean);
 
   const contactParts = [phone, email].filter(Boolean);
@@ -334,22 +334,13 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
               <Text style={S.totalFinalEur}>{fmtEur(rawTotal)}</Text>
               <Text style={S.totalFinalHuf}>{fmtHuf(rawTotal * rate)}</Text>
             </View>
-            {advanceItems.length > 0 && (
-              <>
-                {advanceItems.map((adv, idx) => (
-                  <View key={idx} style={S.advanceRow}>
-                    <Text style={S.advanceLabel}>Abzgl. Anzahlung / Levonva Eloleg:</Text>
-                    <Text style={S.advanceVal}>{fmtEur(-(adv.total ?? 0))}</Text>
-                    <Text style={S.advanceValHuf}>{fmtHuf(-(adv.total ?? 0) * rate)}</Text>
-                  </View>
-                ))}
-                <View style={S.remainRow}>
-                  <Text style={S.remainLabel}>Verbleibender Betrag / Fenmarado:</Text>
-                  <Text style={S.remainVal}>{fmtEur(remainingEur)}</Text>
-                  <Text style={S.remainValHuf}>{fmtHuf(remainingEur * rate)}</Text>
-                </View>
-              </>
-            )}
+            {advanceItems.length > 0 && advanceItems.map((adv, idx) => (
+              <View key={idx} style={S.advanceRow}>
+                <Text style={S.advanceLabel}>Anzahlung / Eloleg:</Text>
+                <Text style={S.advanceVal}>{fmtEur(adv.total ?? 0)}</Text>
+                <Text style={S.advanceValHuf}>{fmtHuf((adv.total ?? 0) * rate)}</Text>
+              </View>
+            ))}
           </View>
         </View>
 

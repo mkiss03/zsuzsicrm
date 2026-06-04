@@ -177,6 +177,17 @@ export function Header({ user, onMobileMenuToggle }: { user: User; onMobileMenuT
     return () => clearInterval(id);
   }, []);
 
+  // EUR/HUF rate badge
+  const [eurHuf, setEurHuf] = useState<number | null>(null);
+  useEffect(() => {
+    fetch("/api/exchange-rate")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { rate?: number } | null) => {
+        if (d?.rate && d.rate > 1) setEurHuf(Math.round(d.rate));
+      })
+      .catch(() => undefined);
+  }, []);
+
   // Greeting data — fetched only on /dashboard
   const [gdata, setGdata] = useState<GreetingData>({ overdueCount: 0, upcomingTrip: null, newBookingsToday: 0 });
 
@@ -277,6 +288,11 @@ export function Header({ user, onMobileMenuToggle }: { user: User; onMobileMenuT
             </nav>
           </div>
           <div className="flex items-center gap-1">
+            {eurHuf && (
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-500 mr-1">
+                EUR/HUF&nbsp;<span className="text-zinc-800">{eurHuf}</span>
+              </span>
+            )}
             <NotificationsDropdown />
             <UserDropdown user={user} />
           </div>
