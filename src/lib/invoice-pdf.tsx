@@ -188,7 +188,7 @@ function MetaRow({ lbl, val }: { lbl: string; val: string }) {
 function TableHeader() {
   return (
     <View style={S.tableHeaderRow}>
-      <Text style={[S.colHead, S.cDesc]}>POSITION / TTEL</Text>
+      <Text style={[S.colHead, S.cDesc]}>POSITION / TÉTEL</Text>
       <Text style={[S.colHead, S.cQty]}>DB</Text>
       <Text style={[S.colHead, S.cUnitEur]}>EP EUR</Text>
       <Text style={[S.colHead, S.cUnitHuf]}>EP HUF</Text>
@@ -268,11 +268,11 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
 
   const contactParts = [phone, email].filter(Boolean);
   const contactLine  = contactParts.join("  -  ");
-  const taxLabel     = `${taxRate}% MwSt. / AFA`;
+  const taxLabel     = `${taxRate}% MwSt. / ÁFA`;
 
   return (
     <Document
-      title={`Rechnungsaufstellung / Szamla reszletezo  ${invoice.invoice_number}`}
+      title={`Rechnungsaufstellung / Számla részletező  ${invoice.invoice_number}`}
       author={companyName}
       creator="ZsuzsiCRM"
     >
@@ -280,13 +280,13 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
         <LeafTopRight />
 
         <View style={S.titleArea}>
-          <Text style={S.titleText}>Rechnungsaufstellung  -  Szamla reszletezo</Text>
+          <Text style={S.titleText}>Rechnungsaufstellung  –  Számla részletező</Text>
         </View>
         <View style={S.divider} />
 
         <View style={S.clientMetaRow}>
           <View style={S.clientBlock}>
-            <Text style={S.clientLabel}>Rechnungsempfanger / Megrendelo:</Text>
+            <Text style={S.clientLabel}>Rechnungsempfänger / Megrendelő:</Text>
             <Text style={S.clientName}>{client.last_name} {client.first_name}</Text>
             {clientAddress.map((line, i) => (
               <Text key={i} style={S.clientLine}>{line}</Text>
@@ -296,12 +296,12 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
           </View>
           <View style={S.metaBlock}>
             <MetaRow lbl="Datum / Datum:"              val={fmtDate(invoice.issue_date)} />
-            <MetaRow lbl="Rechnungsnummer / Szam:"     val={invoice.invoice_number} />
+            <MetaRow lbl="Rechnungsnummer / Szám:"     val={invoice.invoice_number} />
             {invoice.service_date && (
-              <MetaRow lbl="Leistungsdatum / Teljesites:" val={fmtDate(invoice.service_date)} />
+              <MetaRow lbl="Leistungsdatum / Teljesítés:" val={fmtDate(invoice.service_date)} />
             )}
             {invoice.due_date && (
-              <MetaRow lbl="Zahlungsziel / Hatarido:"  val={fmtDate(invoice.due_date)} />
+              <MetaRow lbl="Zahlungsziel / Határidő:"  val={fmtDate(invoice.due_date)} />
             )}
           </View>
         </View>
@@ -318,7 +318,7 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
             {showTax && (
               <>
                 <View style={S.totalsRow}>
-                  <Text style={S.totalsLabel}>Nettobetrag / Netto osszeg:</Text>
+                  <Text style={S.totalsLabel}>Nettobetrag / Nettó összeg:</Text>
                   <Text style={S.totalsEur}>{fmtEur(rawSubtotal)}</Text>
                   <Text style={S.totalsHuf}>{fmtHuf(rawSubtotal * rate)}</Text>
                 </View>
@@ -330,13 +330,13 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
               </>
             )}
             <View style={S.totalFinalRow}>
-              <Text style={S.totalFinalLabel}>GESAMT / OSSZESEN</Text>
+              <Text style={S.totalFinalLabel}>GESAMT / ÖSSZESEN</Text>
               <Text style={S.totalFinalEur}>{fmtEur(rawTotal)}</Text>
               <Text style={S.totalFinalHuf}>{fmtHuf(rawTotal * rate)}</Text>
             </View>
             {advanceItems.length > 0 && advanceItems.map((adv, idx) => (
               <View key={idx} style={S.advanceRow}>
-                <Text style={S.advanceLabel}>Anzahlung / Eloleg:</Text>
+                <Text style={S.advanceLabel}>Anzahlung / Előleg:</Text>
                 <Text style={S.advanceVal}>{fmtEur(adv.total ?? 0)}</Text>
                 <Text style={S.advanceValHuf}>{fmtHuf((adv.total ?? 0) * rate)}</Text>
               </View>
@@ -345,24 +345,24 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
         </View>
 
         <View style={S.rateNote}>
-          <Text style={S.rateNoteText}>Atvaltas / Umrechnung: 1 EUR = {rate} Ft</Text>
+          <Text style={S.rateNoteText}>Átváltás / Umrechnung: 1 EUR = {rate} Ft</Text>
         </View>
 
         {invoice.notes ? (
           <View style={S.notesBox}>
-            <Text style={S.notesLabel}>Hinweis / Megjegyzes</Text>
+            <Text style={S.notesLabel}>Hinweis / Megjegyzés</Text>
             <Text style={S.notesText}>{invoice.notes}</Text>
           </View>
         ) : null}
 
         <View style={S.beneSection}>
-          <Text style={S.beneTitle}>EMPFANGER / KEDVEZMENYE ZETT</Text>
+          <Text style={S.beneTitle}>EMPFÄNGER / KEDVEZMÉNYEZETT</Text>
           <View style={S.beneBody}>
             <View style={S.beneLeft}>
               <Text style={S.beneName}>{companyName}</Text>
               {(bankAcctNo || bankName) ? (
                 <View style={S.beneRow}>
-                  <Text style={S.beneLabel}>Konto / Szamla:</Text>
+                  <Text style={S.beneLabel}>Konto / Számla:</Text>
                   <Text style={S.beneValue}>{bankAcctNo || bankName}</Text>
                 </View>
               ) : null}
@@ -381,7 +381,7 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
                 </View>
               ) : null}
               <View style={S.beneRow}>
-                <Text style={S.beneLabel}>Verwendungszweck / Kozlemeny:</Text>
+                  <Text style={S.beneLabel}>Verwendungszweck / Közlemény:</Text>
                 <Text style={[S.beneValue, { fontFamily: "Lato", fontWeight: 700 }]}>
                   {invoice.invoice_number}
                 </Text>

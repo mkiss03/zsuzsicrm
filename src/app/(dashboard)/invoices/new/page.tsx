@@ -118,10 +118,10 @@ function ClientCombobox({ selected, onSelect }: {
 
 // Hardcoded item definitions (bilingual DE/HU)
 const FIXED_ITEMS = [
-  { key: "accommodation", label: "Unterkunft + Fotografie / Szallas + Fotozas" },
-  { key: "transfers",     label: "Transfers + Sonstige Kosten / Transzferek + Egyeb koltsegek" },
-  { key: "discount",      label: "Rabatt / Kedvezmeny",  isDiscount: true },
-  { key: "advance",       label: "Anzahlung / Eloleg",   isAdvance: true },
+  { key: "accommodation", label: "Unterkunft + Fotografie / Szállás + Fotózás" },
+  { key: "transfers",     label: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek" },
+  { key: "discount",      label: "Rabatt / Kedvezmény",  isDiscount: true },
+  { key: "advance",       label: "Anzahlung / Előleg",   isAdvance: true },
 ] as const;
 
 type FixedItemKey = (typeof FIXED_ITEMS)[number]["key"];
@@ -130,9 +130,9 @@ const TODAY    = format(new Date(), "yyyy-MM-dd");
 const DUE_DATE = format(addDays(new Date(), 14), "yyyy-MM-dd");
 
 const TAX_OPTIONS = [
-  { value: 20, label: "20% - Normalsatz (altalanos)" },
-  { value: 13, label: "13% - Ermaessigt Tourismus (turisztika)" },
-  { value: 0,  label: "0% - Steuerfrei (adomentes)" },
+  { value: 20, label: "20% – Normalsatz (általános)" },
+  { value: 13, label: "13% – Ermäßigt Tourismus (turisztika)" },
+  { value: 0,  label: "0% – Steuerfrei (adómentes)" },
 ] as const;
 
 export default function NewInvoicePage() {
@@ -288,10 +288,10 @@ export default function NewInvoicePage() {
   }, [refreshPreview]);
 
   async function handleSave(sendIt: boolean) {
-    if (!selectedClient) { toast.error("Valassz ugyfelet!"); return; }
+    if (!selectedClient) { toast.error("Válassz ügyfelet!"); return; }
     const items = buildItems();
     if (items.filter((i) => !i.is_advance).length === 0) {
-      toast.error("Adj meg legalabb egy tetelt!"); return;
+      toast.error("Adj meg legalább egy tételt!"); return;
     }
 
     const payload: InvoiceFormValues = {
@@ -310,18 +310,18 @@ export default function NewInvoicePage() {
     const invoice = await createInvoice(payload);
     setSubmitting(false);
     if (invoice) {
-      toast.success(sendIt ? "Szamla kiallitva!" : "Piszkozat elmentve!");
+      toast.success(sendIt ? "Számla kiállítva!" : "Piszkozat elmentve!");
       router.push(`/invoices/${invoice.id}`);
     } else {
-      toast.error("Hiba a mentes soran");
+      toast.error("Hiba a mentés során");
     }
   }
 
   return (
     <div>
       <PageHeader
-        title="Uj szamla"
-        subtitle="Szamla szerkeszto valos ideju elonezette l"
+        title="Új számla"
+        subtitle="Számla szerkesztő valós idejű előnézettel"
         actions={
           <Button variant="outline" asChild>
             <Link href="/invoices"><ArrowLeft className="mr-2 h-4 w-4" />Vissza</Link>
@@ -336,20 +336,20 @@ export default function NewInvoicePage() {
           {/* Client + booking */}
           <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 border-b border-zinc-100 pb-1">
-              Rechnungsempfanger / Ugyfel
+              Rechnungsempfänger / Ügyfél
             </h3>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">Ugyfel <span className="text-red-500">*</span></Label>
+              <Label className="text-sm font-medium text-zinc-700">Ügyfél <span className="text-red-500">*</span></Label>
               <ClientCombobox selected={selectedClient} onSelect={setSelectedClient} />
             </div>
             {selectedClient && bookings.length > 0 && (
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-zinc-700">Kapcsolodo foglalas (opcionalis)</Label>
+                <Label className="text-sm font-medium text-zinc-700">Kapcsolódó foglalás (opcionális)</Label>
                 <Select value={selectedBooking?.id ?? "none"}
                   onValueChange={(v) => { const found = bookings.find((b) => b.id === v); setSelectedBooking(found ?? null); }}>
-                  <SelectTrigger><SelectValue placeholder="— Nincs kapcsolodo foglalas —" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="— Nincs kapcsolódó foglalás —" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">— Nincs kapcsolodo foglalas —</SelectItem>
+                    <SelectItem value="none">— Nincs kapcsolódó foglalás —</SelectItem>
                     {bookings.map((b) => (
                       <SelectItem key={b.id} value={b.id}>{b.booking_code} – {b.trip?.name}</SelectItem>
                     ))}
@@ -383,7 +383,7 @@ export default function NewInvoicePage() {
           {/* Exchange rate */}
           <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 border-b border-zinc-100 pb-1">
-              Wechselkurs / Arfolyam
+              Wechselkurs / Árfolyam
             </h3>
             <div className="flex items-center gap-3">
               <Label className="text-sm font-medium text-zinc-700 whitespace-nowrap">1 EUR =</Label>
@@ -396,20 +396,20 @@ export default function NewInvoicePage() {
                 className="w-32 text-right"
               />
               <span className="text-sm text-zinc-500">Ft</span>
-              <span className="text-xs text-zinc-400 ml-2">(Automatikusan letoltve, de felulirhatod)</span>
+              <span className="text-xs text-zinc-400 ml-2">(Automatikusan letöltve, de felülírhatod)</span>
             </div>
           </div>
 
           {/* Fixed line items */}
           <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 border-b border-zinc-100 pb-1">
-              Positionen / Tetelek
+              Positionen / Tételek
             </h3>
             <div className="grid grid-cols-[1fr_130px_130px_110px] gap-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 px-1">
-              <span>Beschreibung / Leiras</span>
-              <span className="text-right">Ar (EUR)</span>
-              <span className="text-right">Ar (HUF)</span>
-              <span className="text-right">Ossz (EUR)</span>
+              <span>Beschreibung / Leírás</span>
+              <span className="text-right">Ár (EUR)</span>
+              <span className="text-right">Ár (HUF)</span>
+              <span className="text-right">Összeg (EUR)</span>
             </div>
             <div className="space-y-2">
               {FIXED_ITEMS.map((item) => {
@@ -424,8 +424,8 @@ export default function NewInvoicePage() {
                   )}>
                     <div>
                       <p className="text-sm font-medium text-zinc-800">{item.label}</p>
-                      {isAdvance  && <p className="text-xs text-amber-600 mt-0.5">Nem szamit bele a totalba</p>}
-                      {isDiscount && <p className="text-xs text-red-500 mt-0.5">Kedvezmeny (levonva)</p>}
+                      {isAdvance  && <p className="text-xs text-amber-600 mt-0.5">Nem számít bele a végösszegbe</p>}
+                      {isDiscount && <p className="text-xs text-red-500 mt-0.5">Kedvezmény (levonva)</p>}
                     </div>
                     <div className="relative">
                       <Input
@@ -453,10 +453,10 @@ export default function NewInvoicePage() {
           {/* Tax + totals */}
           <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 border-b border-zinc-100 pb-1">
-              Steuer / Ado
+              Steuer / Adó
             </h3>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">MwSt.-Satz / AFA kulcs</Label>
+              <Label className="text-sm font-medium text-zinc-700">MwSt.-Satz / ÁFA kulcs</Label>
               <Select value={String(taxRate)} onValueChange={(v) => setTaxRate(Number(v) as 20 | 13 | 0)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -487,7 +487,7 @@ export default function NewInvoicePage() {
               </div>
               {prices.advance !== 0 && (
                 <div className="grid grid-cols-3 text-sm border-t border-amber-200 pt-2 text-amber-700">
-                  <span>Eloleg levonva</span>
+                  <span>Előleg</span>
                   <span className="text-right">{fmtEur(-prices.advance)}</span>
                   <span className="text-right text-xs">{fmtHuf(-prices.advance, eurHufRate)}</span>
                 </div>
@@ -497,24 +497,24 @@ export default function NewInvoicePage() {
 
           {/* Notes */}
           <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-1.5">
-            <Label className="text-sm font-medium text-zinc-700">Zahlungshinweis / Megjegyzes</Label>
+            <Label className="text-sm font-medium text-zinc-700">Zahlungshinweis / Megjegyzés</Label>
             <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
-              placeholder="Bitte ueberweisen Sie den Betrag innerhalb von 14 Tagen..." />
+              placeholder="Bitte überweisen Sie den Betrag innerhalb von 14 Tagen..." />
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-3 justify-end py-2">
             <Button variant="outline" onClick={() => void refreshPreview()} disabled={previewLoading}>
               <RefreshCw className={cn("mr-2 h-4 w-4", previewLoading && "animate-spin")} />
-              Elonezet frissitese
+              Előnézet frissítése
             </Button>
             <Button variant="outline" onClick={() => handleSave(false)} disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Mentes piszkozatkent
+              Mentés piszkozatként
             </Button>
             <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => handleSave(true)} disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Mentes es kiallitas
+              Mentés és kiállítás
             </Button>
           </div>
         </div>
@@ -524,18 +524,18 @@ export default function NewInvoicePage() {
           <div className="rounded-md border border-zinc-200 overflow-hidden" style={{ height: "calc(100vh - 160px)" }}>
             {!selectedClient ? (
               <div className="flex h-full flex-col items-center justify-center text-center p-8">
-                <p className="text-sm text-zinc-400 mb-2">Az elonezet megjelenik,</p>
-                <p className="text-xs text-zinc-400">amint ugyfelet valasztasz</p>
+                <p className="text-sm text-zinc-400 mb-2">Az előnézet megjelenik,</p>
+                <p className="text-xs text-zinc-400">amint ügyfelet választász</p>
               </div>
             ) : previewLoading && !previewUrl ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
-                  <p className="text-xs text-zinc-400">PDF elonezet generalasa...</p>
+                  <p className="text-xs text-zinc-400">PDF előnézet generálása...</p>
                 </div>
               </div>
             ) : previewUrl ? (
-              <iframe key={previewUrl} src={previewUrl} className="w-full h-full border-0" title="Szamla elonezet" />
+              <iframe key={previewUrl} src={previewUrl} className="w-full h-full border-0" title="Számla előnézet" />
             ) : null}
             {previewLoading && previewUrl && (
               <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
