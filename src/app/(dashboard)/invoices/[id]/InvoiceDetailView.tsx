@@ -25,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Invoice, InvoiceStatus, Client } from "@/types";
-import type { InvoiceLanguage, InvoiceCurrency } from "@/lib/invoice-pdf";
 
 // ─── Date formatters ──────────────────────────────────────────────────────────
 
@@ -97,43 +96,31 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
   const [showPaid, setShowPaid]         = useState(false);
   const [showDelete, setShowDelete]     = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [language, setLanguage]         = useState<InvoiceLanguage>("hu");
-  const [currency, setCurrency]         = useState<InvoiceCurrency>("EUR");
 
   const { client } = invoice;
   const isEditable  = invoice.status === "draft";
   const isPaid      = invoice.status === "paid";
   const isCancelled = invoice.status === "cancelled";
 
-  // Generate (or re-generate) PDF with current language/currency
-  async function regeneratePDF(lang: InvoiceLanguage, curr: InvoiceCurrency) {
+  // Generate (or re-generate) PDF
+  async function regeneratePDF() {
     setPdfUrl(null);
     setIframeLoaded(false);
     setPdfLoading(true);
-    const url = await generatePDF(invoice.id, { language: lang, currency: curr });
+    const url = await generatePDF(invoice.id);
     setPdfLoading(false);
     if (url) setPdfUrl(url);
-    else toast.error("Hiba a PDF generálásakor");
+    else toast.error("Hiba a PDF generalasakor");
   }
 
   // Trigger PDF load on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void regeneratePDF(language, currency); }, []);
-
-  function handleLanguageChange(lang: InvoiceLanguage) {
-    setLanguage(lang);
-    void regeneratePDF(lang, currency);
-  }
-
-  function handleCurrencyChange(curr: InvoiceCurrency) {
-    setCurrency(curr);
-    void regeneratePDF(language, curr);
-  }
+  useEffect(() => { void regeneratePDF(); }, []);
 
   async function handleDownload() {
     const url = pdfUrl ?? await (async () => {
       setPdfLoading(true);
-      const u = await generatePDF(invoice.id, { language, currency });
+      const u = await generatePDF(invoice.id);
       setPdfLoading(false);
       if (u) setPdfUrl(u);
       return u;
@@ -193,42 +180,6 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Language toggle */}
-          <div className="flex rounded-md border border-zinc-200 overflow-hidden text-xs font-medium">
-            {(["hu", "de", "bilingual"] as InvoiceLanguage[]).map((l) => (
-              <button
-                key={l}
-                onClick={() => handleLanguageChange(l)}
-                className={cn(
-                  "px-2.5 py-1.5 transition-colors",
-                  language === l
-                    ? "bg-zinc-800 text-white"
-                    : "bg-white text-zinc-600 hover:bg-zinc-50",
-                  l !== "hu" && "border-l border-zinc-200",
-                )}
-              >
-                {l === "bilingual" ? "HU+DE" : l.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {/* Currency toggle */}
-          <div className="flex rounded-md border border-zinc-200 overflow-hidden text-xs font-medium">
-            {(["EUR", "HUF"] as InvoiceCurrency[]).map((c) => (
-              <button
-                key={c}
-                onClick={() => handleCurrencyChange(c)}
-                className={cn(
-                  "px-2.5 py-1.5 transition-colors",
-                  currency === c
-                    ? "bg-zinc-800 text-white"
-                    : "bg-white text-zinc-600 hover:bg-zinc-50",
-                  c === "HUF" && "border-l border-zinc-200",
-                )}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
           <Button variant="outline" size="sm" onClick={handleDownload} disabled={pdfLoading}>
             {pdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
             PDF letöltés

@@ -168,6 +168,8 @@ export interface InvoiceItem {
   quantity: number;
   unit_price: number;
   total: number;
+  /** If true, this item is an advance payment and is excluded from the invoice total */
+  is_advance?: boolean;
 }
 
 export interface Invoice {

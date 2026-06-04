@@ -1,12 +1,10 @@
 ﻿/**
- * Invoice PDF â€” botanical / elegant style  (React-PDF)
+ * Invoice PDF - botanical / elegant style  (React-PDF)
  *
- * Props:
- *   language : "hu" | "de" | "bilingual"   (default "hu")
- *   currency : "EUR" | "HUF"               (default "EUR")
- *
- * Design: warm beige palette, botanical leaf decorations,
- * matches the style used by UtazóFotós / Tuza-Göncz Zsuzsanna.
+ * Always bilingual (DE + HU) and always shows BOTH EUR and HUF columns.
+ * Amounts are stored in EUR; HUF is computed as EUR x eurHufRate.
+ * The "Eloeleg / Anzahlung" item (is_advance=true) is shown separately
+ * after the total and is NOT included in the invoice total.
  */
 
 import React from "react";
@@ -21,7 +19,6 @@ import {
   Path,
 } from "@react-pdf/renderer";
 
-// â”€â”€â”€ Font registration (Lato â€” full Latin Extended / Hungarian support) â”€â”€â”€â”€â”€â”€â”€â”€
 Font.register({
   family: "Lato",
   fonts: [
@@ -29,584 +26,155 @@ Font.register({
     { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Bold.ttf",    fontWeight: 700 },
   ],
 });
-Font.registerHyphenationCallback((word) => [word]); // disable hyphenation
-import type { Invoice, Client, InvoiceItem } from "@/types";
+Font.registerHyphenationCallback((word) => [word]);
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import type { Invoice, Client, InvoiceItem } from "@/types";
 
 export type InvoiceLanguage = "hu" | "de" | "bilingual";
 export type InvoiceCurrency = "EUR" | "HUF";
 
-// â”€â”€â”€ Colour palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 const C = {
   white:       "#FFFFFF",
-  beige:       "#F6F1EB",   // warm beige section backgrounds
-  beigeAlt:    "#EDE5D8",   // table header row
-  taupe:       "#BEA98E",   // TOTAL row highlight
-  taupeDeep:   "#A08060",   // TOTAL row border accent
-  brown:       "#3D3529",   // primary text
-  brownMid:    "#7A6E5F",   // secondary text
-  brownLight:  "#B0A494",   // subtle / placeholder text
-  border:      "#D9CFBF",   // dividers / borders
-  borderLight: "#EDE8E0",   // thin separators
+  beige:       "#F6F1EB",
+  beigeAlt:    "#EDE5D8",
+  taupe:       "#BEA98E",
+  brown:       "#3D3529",
+  brownMid:    "#7A6E5F",
+  brownLight:  "#B0A494",
+  border:      "#D9CFBF",
+  borderLight: "#EDE8E0",
 };
-
-// â”€â”€â”€ Labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-interface LabelSet {
-  title:        string;
-  client:       string;
-  date:         string;
-  invNum:       string;
-  dueDate:      string;
-  serviceDate:  string;
-  colItem:      string;
-  colQty:       string;
-  colUnit:      string;
-  colValue:     string;
-  netTotal:     string;
-  tax:          string;
-  total:        string;
-  beneficiary:  string;
-  bankAcct:     string;
-  iban:         string;
-  bic:          string;
-  payRef:       string;
-  notes:        string;
-  thanks:       string;
-  page:         (n: number, t: number) => string;
-}
-
-const HU: LabelSet = {
-  title:       "Számla részletező",
-  client:      "Megrendelő:",
-  date:        "Dátum:",
-  invNum:      "Számlaszám:",
-  dueDate:     "Fizetési határidő:",
-  serviceDate: "Teljesítés dátuma:",
-  colItem:     "TÉTEL",
-  colQty:      "MENNYISÉG",
-  colUnit:     "EGYSÉGÁR",
-  colValue:    "ÉRTÉK",
-  netTotal:    "Nettó összeg:",
-  tax:         "ÁFA",
-  total:       "TOTAL",
-  beneficiary: "KEDVEZMÉNYEZETT",
-  bankAcct:    "Bankszámlaszám:",
-  iban:        "IBAN:",
-  bic:         "BIC/SWIFT:",
-  payRef:      "Közlemény:",
-  notes:       "Megjegyzés",
-  thanks:      "Köszönjük a bizalmat!",
-  page:        (n, t) => `${n}. oldal / ${t}`,
-};
-
-const DE: LabelSet = {
-  title:       "Rechnungsaufstellung",
-  client:      "Auftraggeber:",
-  date:        "Datum:",
-  invNum:      "Rechnungsnummer:",
-  dueDate:     "Zahlungsziel:",
-  serviceDate: "Leistungsdatum:",
-  colItem:     "POSITION",
-  colQty:      "MENGE",
-  colUnit:     "EINZELPREIS",
-  colValue:    "BETRAG",
-  netTotal:    "Nettobetrag:",
-  tax:         "MwSt.",
-  total:       "GESAMT",
-  beneficiary: "EMPFÄNGER",
-  bankAcct:    "Bankkontonummer:",
-  iban:        "IBAN:",
-  bic:         "BIC/SWIFT:",
-  payRef:      "Verwendungszweck:",
-  notes:       "Hinweis",
-  thanks:      "Vielen Dank für Ihr Vertrauen!",
-  page:        (n, t) => `Seite ${n} von ${t}`,
-};
-
-function label(key: keyof Omit<LabelSet, "page">, lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU[key]} / ${DE[key]}`;
-  return lang === "de" ? DE[key] : HU[key];
-}
-
-function titleLabel(lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.title}  ·  ${DE.title}`;
-  return lang === "de" ? DE.title : HU.title;
-}
-
-function pageLabel(n: number, t: number, lang: InvoiceLanguage): string {
-  if (lang === "bilingual") return `${HU.page(n, t)}  ·  ${DE.page(n, t)}`;
-  return lang === "de" ? DE.page(n, t) : HU.page(n, t);
-}
-
-// â”€â”€â”€ Formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(d: string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const parts = d.slice(0, 10).split("-");
   if (parts.length !== 3) return d;
   return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
-function fmtMoney(n: number | null | undefined, currency: InvoiceCurrency): string {
-  if (n == null) return currency === "HUF" ? "0 Ft" : "€ 0,00";
-  if (currency === "HUF") {
-    const rounded = Math.round(n);
-    const parts = Math.abs(rounded).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
-    return (n < 0 ? "-" : "") + parts + " Ft";
-  }
-  // EUR
-  const sign = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
-  const [int = "0", dec = "00"] = abs.toFixed(2).split(".");
-  const thousands = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sign}€ ${thousands},${dec}`;
+function fmtEur(n: number | null | undefined): string {
+  if (n == null) return "\u20ac 0,00";
+  const sign = n < 0 ? "\u2212" : "";
+  const [int = "0", dec = "00"] = Math.abs(n).toFixed(2).split(".");
+  return `${sign}\u20ac ${int.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec}`;
 }
 
-// â”€â”€â”€ SVG decorations (botanical leaf clusters) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function fmtHuf(n: number | null | undefined): string {
+  if (n == null) return "0 Ft";
+  const sign = n < 0 ? "-" : "";
+  const parts = Math.round(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+  return `${sign}${parts} Ft`;
+}
 
-/** Top-right corner: elegant leaf branch curving from top-right inward */
 function LeafTopRight() {
   return (
-    <Svg
-      viewBox="0 0 100 115"
-      style={{ position: "absolute", top: 0, right: 0, width: 100, height: 115, opacity: 0.80 }}
-    >
-      {/* main stem */}
-      <Path
-        d="M 94 5 C 80 16 60 36 40 58 C 26 72 14 86 8 100"
-        stroke={C.taupe}
-        strokeWidth="1.4"
-        fill="none"
-        strokeLinecap="round"
-      />
-      {/* leaf 1 â€“ upper tip */}
-      <Path
-        d="M 94 5 C 86 -1 74 2 72 13 C 80 13 90 10 94 5 Z"
-        stroke={C.taupe}
-        strokeWidth="1"
-        fill={C.beigeAlt}
-      />
-      {/* leaf 1 midrib */}
+    <Svg viewBox="0 0 100 115" style={{ position: "absolute", top: 0, right: 0, width: 90, height: 105, opacity: 0.75 }}>
+      <Path d="M 94 5 C 80 16 60 36 40 58 C 26 72 14 86 8 100" stroke={C.taupe} strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <Path d="M 94 5 C 86 -1 74 2 72 13 C 80 13 90 10 94 5 Z" stroke={C.taupe} strokeWidth="1" fill={C.beigeAlt} />
       <Path d="M 94 5 C 88 7 78 10 72 13" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 2 */}
-      <Path
-        d="M 72 22 C 80 14 92 17 92 28 C 84 28 74 26 72 22 Z"
-        stroke={C.taupe}
-        strokeWidth="1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 72 22 C 80 14 92 17 92 28 C 84 28 74 26 72 22 Z" stroke={C.taupe} strokeWidth="1" fill={C.beigeAlt} />
       <Path d="M 72 22 C 78 23 86 25 92 28" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 3 */}
-      <Path
-        d="M 52 40 C 60 32 72 35 72 46 C 64 46 54 44 52 40 Z"
-        stroke={C.taupe}
-        strokeWidth="1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 52 40 C 60 32 72 35 72 46 C 64 46 54 44 52 40 Z" stroke={C.taupe} strokeWidth="1" fill={C.beigeAlt} />
       <Path d="M 52 40 C 58 42 66 44 72 46" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 4 */}
-      <Path
-        d="M 34 58 C 42 50 54 53 54 64 C 46 64 36 62 34 58 Z"
-        stroke={C.taupe}
-        strokeWidth="1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 34 58 C 42 50 54 53 54 64 C 46 64 36 62 34 58 Z" stroke={C.taupe} strokeWidth="1" fill={C.beigeAlt} />
       <Path d="M 34 58 C 40 60 48 62 54 64" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 5 â€“ lower */}
-      <Path
-        d="M 16 76 C 22 68 34 71 34 82 C 26 82 18 80 16 76 Z"
-        stroke={C.taupe}
-        strokeWidth="1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 16 76 C 22 68 34 71 34 82 C 26 82 18 80 16 76 Z" stroke={C.taupe} strokeWidth="1" fill={C.beigeAlt} />
       <Path d="M 16 76 C 22 78 28 80 34 82" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
     </Svg>
   );
 }
 
-/** Bottom-left corner: mirrored, larger leaf cluster */
 function LeafBottomLeft() {
   return (
-    <Svg
-      viewBox="0 0 115 130"
-      style={{ position: "absolute", bottom: 0, left: 0, width: 115, height: 130, opacity: 0.80 }}
-    >
-      {/* main stem */}
-      <Path
-        d="M 10 122 C 22 106 42 88 62 68 C 78 52 90 36 100 14"
-        stroke={C.taupe}
-        strokeWidth="1.6"
-        fill="none"
-        strokeLinecap="round"
-      />
-      {/* leaf 1 â€“ lower */}
-      <Path
-        d="M 10 122 C 2 112 4 98 14 94 C 18 106 16 118 10 122 Z"
-        stroke={C.taupe}
-        strokeWidth="1.1"
-        fill={C.beigeAlt}
-      />
+    <Svg viewBox="0 0 115 130" style={{ position: "absolute", bottom: 0, left: 0, width: 100, height: 115, opacity: 0.75 }}>
+      <Path d="M 10 122 C 22 106 42 88 62 68 C 78 52 90 36 100 14" stroke={C.taupe} strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      <Path d="M 10 122 C 2 112 4 98 14 94 C 18 106 16 118 10 122 Z" stroke={C.taupe} strokeWidth="1.1" fill={C.beigeAlt} />
       <Path d="M 10 122 C 12 114 14 104 14 94" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 2 */}
-      <Path
-        d="M 28 104 C 18 96 20 82 30 78 C 34 88 34 100 28 104 Z"
-        stroke={C.taupe}
-        strokeWidth="1.1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 28 104 C 18 96 20 82 30 78 C 34 88 34 100 28 104 Z" stroke={C.taupe} strokeWidth="1.1" fill={C.beigeAlt} />
       <Path d="M 28 104 C 30 96 30 86 30 78" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 3 */}
-      <Path
-        d="M 48 86 C 38 78 38 64 48 60 C 54 70 54 82 48 86 Z"
-        stroke={C.taupe}
-        strokeWidth="1.1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 48 86 C 38 78 38 64 48 60 C 54 70 54 82 48 86 Z" stroke={C.taupe} strokeWidth="1.1" fill={C.beigeAlt} />
       <Path d="M 48 86 C 50 78 50 68 48 60" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 4 */}
-      <Path
-        d="M 66 68 C 56 60 58 46 68 42 C 74 52 74 64 66 68 Z"
-        stroke={C.taupe}
-        strokeWidth="1.1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 66 68 C 56 60 58 46 68 42 C 74 52 74 64 66 68 Z" stroke={C.taupe} strokeWidth="1.1" fill={C.beigeAlt} />
       <Path d="M 66 68 C 68 60 68 50 68 42" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* leaf 5 */}
-      <Path
-        d="M 84 48 C 74 40 76 26 86 22 C 92 32 92 44 84 48 Z"
-        stroke={C.taupe}
-        strokeWidth="1.1"
-        fill={C.beigeAlt}
-      />
+      <Path d="M 84 48 C 74 40 76 26 86 22 C 92 32 92 44 84 48 Z" stroke={C.taupe} strokeWidth="1.1" fill={C.beigeAlt} />
       <Path d="M 84 48 C 86 40 86 30 86 22" stroke={C.brownLight} strokeWidth="0.5" fill="none" />
-      {/* small side leaf */}
-      <Path
-        d="M 80 12 C 74 6 76 -2 84 -2 C 88 6 86 12 80 12 Z"
-        stroke={C.brownLight}
-        strokeWidth="0.9"
-        fill="none"
-      />
     </Svg>
   );
 }
 
-// â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 const S = StyleSheet.create({
   page: {
     fontFamily: "Lato",
-    fontSize: 9,
+    fontSize: 8.5,
     color: C.brown,
     backgroundColor: C.white,
-    paddingTop: 38,
-    paddingBottom: 65,
-    paddingLeft: 44,
-    paddingRight: 44,
-    lineHeight: 1.45,
+    paddingTop: 30,
+    paddingBottom: 44,
+    paddingLeft: 38,
+    paddingRight: 38,
+    lineHeight: 1.4,
   },
-
-  // â”€â”€ Title area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  titleArea: {
-    marginBottom: 6,
-    paddingRight: 80, // leave room for leaf SVG
-  },
-  titleText: {
-    fontFamily: "Lato",
-    fontWeight: 400,
-    fontSize: 28,
-    color: "#B0A494",
-    letterSpacing: -0.5,
-    marginBottom: 2,
-  },
-
-  // â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  divider: {
-    height: 1,
-    backgroundColor: C.border,
-    marginBottom: 16,
-    marginTop: 6,
-  },
-
-  // â”€â”€ Client + meta block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  clientMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  clientBlock: {
-    flex: 1,
-    paddingRight: 24,
-  },
-  clientLabel: {
-    fontSize: 7.5,
-    fontFamily: "Lato",
-    fontWeight: 700,
-    color: C.brownLight,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 5,
-  },
-  clientName: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 11,
-    color: C.brown,
-    marginBottom: 2,
-  },
-  clientLine: {
-    fontSize: 9,
-    color: C.brownMid,
-    marginBottom: 1.5,
-  },
-  metaBlock: {
-    alignItems: "flex-end",
-    minWidth: 170,
-  },
-  metaRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: 3,
-  },
-  metaLabel: {
-    fontSize: 8,
-    color: C.brownLight,
-    textAlign: "right",
-    marginRight: 8,
-    width: 100,
-  },
-  metaValue: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 8.5,
-    color: C.brown,
-    width: 80,
-    textAlign: "right",
-  },
-
-  // â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  table: {
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  tableHeaderRow: {
-    flexDirection: "row",
-    backgroundColor: C.beigeAlt,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderTopWidth: 1,
-    borderTopColor: C.borderLight,
-  },
-  tableRowAlt: {
-    backgroundColor: C.beige,
-  },
-  colHead: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 7.5,
-    color: C.brownMid,
-    letterSpacing: 0.4,
-  },
-  colCell: {
-    fontSize: 9,
-    color: C.brown,
-  },
-  // Column widths
-  cDesc:  { flex: 1, paddingRight: 8 },
-  cQty:   { width: 58,  textAlign: "right", paddingRight: 8 },
-  cUnit:  { width: 78,  textAlign: "right", paddingRight: 8 },
-  cVal:   { width: 78,  textAlign: "right" },
-
-  // â”€â”€ Totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  totalsSection: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: 20,
-  },
-  totalsBox: {
-    width: 250,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  totalsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: C.borderLight,
-  },
-  totalsLabel: {
-    fontSize: 8.5,
-    color: C.brownMid,
-  },
-  totalsValue: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 8.5,
-    color: C.brown,
-  },
-  totalFinalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    backgroundColor: C.taupe,
-  },
-  totalFinalLabel: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 11,
-    color: C.white,
-    letterSpacing: 0.5,
-  },
-  totalFinalValue: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 12,
-    color: C.white,
-  },
-
-  // â”€â”€ Notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  notesBox: {
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 2,
-    padding: 10,
-    marginBottom: 18,
-    backgroundColor: C.beige,
-  },
-  notesLabel: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 7.5,
-    color: C.brownMid,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 8.5,
-    color: C.brownMid,
-    lineHeight: 1.6,
-  },
-
-  // â”€â”€ Beneficiary / payment section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  beneSection: {
-    backgroundColor: C.beige,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 2,
-    padding: 14,
-    marginBottom: 16,
-  },
-  beneTitle: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 8,
-    color: C.brownMid,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    paddingBottom: 4,
-  },
-  beneName: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 10,
-    color: C.brown,
-    marginBottom: 4,
-  },
-  beneGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  beneRow: {
-    flexDirection: "row",
-    width: "50%",
-    marginBottom: 3,
-  },
-  beneLabel: {
-    fontSize: 8,
-    color: C.brownLight,
-    width: 70,
-  },
-  beneValue: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 8,
-    color: C.brown,
-    flex: 1,
-  },
-  payRefRow: {
-    flexDirection: "row",
-    marginTop: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: C.borderLight,
-  },
-
-  // â”€â”€ Contact footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  contactBar: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  contactText: {
-    fontSize: 8,
-    color: C.brownMid,
-    textAlign: "center",
-  },
-
-  // â”€â”€ Fixed page footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  footer: {
-    position: "absolute",
-    bottom: 18,
-    left: 44,
-    right: 44,
-    borderTopWidth: 1,
-    borderTopColor: C.borderLight,
-    paddingTop: 5,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  footerText: {
-    fontSize: 7,
-    color: C.brownLight,
-  },
-
-  // â”€â”€ Exchange-rate note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  rateNote: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: -10,
-    marginBottom: 14,
-  },
-  rateNoteText: {
-    fontSize: 7,
-    color: C.brownLight,
-  },
+  titleArea:  { marginBottom: 4, paddingRight: 75 },
+  titleText:  { fontFamily: "Lato", fontWeight: 400, fontSize: 22, color: "#B0A494", letterSpacing: -0.4, marginBottom: 1 },
+  divider:    { height: 1, backgroundColor: C.border, marginBottom: 12, marginTop: 4 },
+  clientMetaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
+  clientBlock:   { flex: 1, paddingRight: 20 },
+  clientLabel:   { fontSize: 7, fontFamily: "Lato", fontWeight: 700, color: C.brownLight, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 },
+  clientName:    { fontFamily: "Lato", fontWeight: 700, fontSize: 10, color: C.brown, marginBottom: 1.5 },
+  clientLine:    { fontSize: 8.5, color: C.brownMid, marginBottom: 1.5 },
+  metaBlock:     { alignItems: "flex-end", minWidth: 165 },
+  metaRow:       { flexDirection: "row", justifyContent: "flex-end", marginBottom: 2.5 },
+  metaLabel:     { fontSize: 7.5, color: C.brownLight, textAlign: "right", marginRight: 6, width: 100 },
+  metaValue:     { fontFamily: "Lato", fontWeight: 700, fontSize: 8, color: C.brown, width: 72, textAlign: "right" },
+  table:          { marginBottom: 12, borderWidth: 1, borderColor: C.border, borderRadius: 2, overflow: "hidden" },
+  tableHeaderRow: { flexDirection: "row", backgroundColor: C.beigeAlt, paddingVertical: 5, paddingHorizontal: 6 },
+  tableRow:       { flexDirection: "row", paddingVertical: 5, paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: C.borderLight },
+  tableRowAlt:    { backgroundColor: C.beige },
+  colHead:        { fontFamily: "Lato", fontWeight: 700, fontSize: 7, color: C.brownMid, letterSpacing: 0.3 },
+  colCell:        { fontSize: 8.5, color: C.brown },
+  cDesc:    { flex: 1, paddingRight: 4 },
+  cQty:     { width: 26,  textAlign: "right", paddingRight: 4 },
+  cUnitEur: { width: 57,  textAlign: "right", paddingRight: 4 },
+  cUnitHuf: { width: 64,  textAlign: "right", paddingRight: 4 },
+  cTotEur:  { width: 57,  textAlign: "right", paddingRight: 4 },
+  cTotHuf:  { width: 64,  textAlign: "right" },
+  totalsSection: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 8 },
+  totalsBox:     { width: 315, borderWidth: 1, borderColor: C.border, borderRadius: 2, overflow: "hidden" },
+  totalsRow: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: C.borderLight },
+  totalsLabel: { fontSize: 8, color: C.brownMid, flex: 1 },
+  totalsEur:   { fontFamily: "Lato", fontWeight: 700, fontSize: 8, color: C.brown, width: 74, textAlign: "right" },
+  totalsHuf:   { fontFamily: "Lato", fontWeight: 700, fontSize: 8, color: C.brown, width: 82, textAlign: "right" },
+  totalFinalRow:  { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 8, backgroundColor: C.taupe },
+  totalFinalLabel: { fontFamily: "Lato", fontWeight: 700, fontSize: 10, color: C.white, letterSpacing: 0.4, flex: 1 },
+  totalFinalEur:   { fontFamily: "Lato", fontWeight: 700, fontSize: 10, color: C.white, width: 74, textAlign: "right" },
+  totalFinalHuf:   { fontFamily: "Lato", fontWeight: 700, fontSize: 10, color: C.white, width: 82, textAlign: "right" },
+  advanceRow: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.borderLight, backgroundColor: C.beige },
+  advanceLabel:  { fontSize: 7.5, color: C.brownMid, flex: 1 },
+  advanceVal:    { fontSize: 7.5, color: C.brownMid, width: 74, textAlign: "right" },
+  advanceValHuf: { fontSize: 7.5, color: C.brownMid, width: 82, textAlign: "right" },
+  remainRow:  { flexDirection: "row", alignItems: "center", paddingVertical: 5, paddingHorizontal: 8, backgroundColor: C.beigeAlt },
+  remainLabel: { fontFamily: "Lato", fontWeight: 700, fontSize: 8.5, color: C.brown, flex: 1 },
+  remainVal:   { fontFamily: "Lato", fontWeight: 700, fontSize: 8.5, color: C.brown, width: 74, textAlign: "right" },
+  remainValHuf:{ fontFamily: "Lato", fontWeight: 700, fontSize: 8.5, color: C.brown, width: 82, textAlign: "right" },
+  rateNote:     { flexDirection: "row", justifyContent: "flex-end", marginBottom: 8, marginTop: -2 },
+  rateNoteText: { fontSize: 7, color: C.brownLight },
+  notesBox: { borderWidth: 1, borderColor: C.border, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 8, backgroundColor: C.beige },
+  notesLabel: { fontFamily: "Lato", fontWeight: 700, fontSize: 7, color: C.brownMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  notesText:  { fontSize: 8, color: C.brownMid, lineHeight: 1.5 },
+  beneSection: { backgroundColor: C.beige, borderWidth: 1, borderColor: C.border, borderRadius: 2, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 8 },
+  beneTitle:   { fontFamily: "Lato", fontWeight: 700, fontSize: 7, color: C.brownMid, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 3 },
+  beneBody:    { flexDirection: "row", alignItems: "flex-start" },
+  beneLeft:    { flex: 1, paddingRight: 10 },
+  beneRight:   { flex: 1 },
+  beneName:    { fontFamily: "Lato", fontWeight: 700, fontSize: 9, color: C.brown, marginBottom: 3 },
+  beneRow:     { flexDirection: "row", marginBottom: 2 },
+  beneLabel:   { fontSize: 7.5, color: C.brownLight, width: 68 },
+  beneValue:   { fontFamily: "Lato", fontWeight: 700, fontSize: 7.5, color: C.brown, flex: 1 },
+  contactBar:  { flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: 4 },
+  contactText: { fontSize: 7.5, color: C.brownMid, textAlign: "center" },
+  footer: { position: "absolute", bottom: 16, left: 38, right: 38, borderTopWidth: 1, borderTopColor: C.borderLight, paddingTop: 4, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  footerText: { fontSize: 7, color: C.brownLight },
 });
-
-// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MetaRow({ lbl, val }: { lbl: string; val: string }) {
   return (
@@ -617,86 +185,80 @@ function MetaRow({ lbl, val }: { lbl: string; val: string }) {
   );
 }
 
-function TableHeaderRow({ lang }: { lang: InvoiceLanguage }) {
+function TableHeader() {
   return (
     <View style={S.tableHeaderRow}>
-      <Text style={[S.colHead, S.cDesc]}>{label("colItem", lang)}</Text>
-      <Text style={[S.colHead, S.cQty]}>{label("colQty", lang)}</Text>
-      <Text style={[S.colHead, S.cUnit]}>{label("colUnit", lang)}</Text>
-      <Text style={[S.colHead, S.cVal]}>{label("colValue", lang)}</Text>
+      <Text style={[S.colHead, S.cDesc]}>POSITION / TTEL</Text>
+      <Text style={[S.colHead, S.cQty]}>DB</Text>
+      <Text style={[S.colHead, S.cUnitEur]}>EP EUR</Text>
+      <Text style={[S.colHead, S.cUnitHuf]}>EP HUF</Text>
+      <Text style={[S.colHead, S.cTotEur]}>GESAMT EUR</Text>
+      <Text style={[S.colHead, S.cTotHuf]}>GESAMT HUF</Text>
     </View>
   );
 }
 
-function TableItemRow({
-  item,
-  index,
-  currency,
-  rate,
-}: {
-  item: InvoiceItem;
-  index: number;
-  currency: InvoiceCurrency;
-  rate: number;
-}) {
+function TableItemRow({ item, index, eurHufRate }: { item: InvoiceItem; index: number; eurHufRate: number }) {
   const alt = index % 2 === 1;
+  const qty = typeof item.quantity === "number"
+    ? item.quantity % 1 === 0 ? String(item.quantity) : item.quantity.toFixed(2)
+    : String(item.quantity);
+  const unitEur = item.unit_price ?? 0;
+  const totEur  = item.total ?? 0;
   return (
     <View style={[S.tableRow, alt ? S.tableRowAlt : {}]}>
       <Text style={[S.colCell, S.cDesc]}>{item.description}</Text>
-      <Text style={[S.colCell, S.cQty]}>
-        {typeof item.quantity === "number"
-          ? item.quantity % 1 === 0
-            ? String(item.quantity)
-            : item.quantity.toFixed(2)
-          : item.quantity}
-      </Text>
-      <Text style={[S.colCell, S.cUnit]}>{fmtMoney((item.unit_price ?? 0) * rate, currency)}</Text>
-      <Text style={[S.colCell, S.cVal]}>{fmtMoney((item.total ?? 0) * rate, currency)}</Text>
+      <Text style={[S.colCell, S.cQty]}>{qty}</Text>
+      <Text style={[S.colCell, S.cUnitEur]}>{fmtEur(unitEur)}</Text>
+      <Text style={[S.colCell, S.cUnitHuf]}>{fmtHuf(unitEur * eurHufRate)}</Text>
+      <Text style={[S.colCell, S.cTotEur]}>{fmtEur(totEur)}</Text>
+      <Text style={[S.colCell, S.cTotHuf]}>{fmtHuf(totEur * eurHufRate)}</Text>
     </View>
   );
 }
-
-// â”€â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface InvoicePDFProps {
   invoice:      Invoice;
   client:       Client;
   settings:     Record<string, string>;
+  /** 1 EUR = X HUF (e.g. 395). Default: 395 */
+  eurHufRate?:  number;
+  /** @deprecated ignored – always bilingual */
   language?:    InvoiceLanguage;
+  /** @deprecated ignored – always shows both EUR + HUF */
   currency?:    InvoiceCurrency;
-  /** Multiplier applied to all amounts (e.g. 0.0025 for HUFâ†’EUR at 400 Ft/â‚¬) */
+  /** @deprecated use eurHufRate instead (was HUF-to-EUR multiplier like 0.0025) */
   exchangeRate?: number;
 }
 
-// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate }: InvoicePDFProps) {
+  const rate: number =
+    eurHufRate != null
+      ? eurHufRate
+      : exchangeRate != null && exchangeRate < 1
+        ? Math.round(1 / exchangeRate)
+        : 395;
 
-export function InvoicePDF({
-  invoice,
-  client,
-  settings,
-  language = "hu",
-  currency = "EUR",
-  exchangeRate,
-}: InvoicePDFProps) {
-  const rate = exchangeRate ?? 1;
-  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-Göncz Zsuzsanna, Utazó fotós";
+  const companyName = settings["agency_legal_name"] || settings["agency_name"] || "Tuza-Goncz Zsuzsanna, Utazo fotos";
   const email       = settings["agency_email"]   || "";
   const phone       = settings["agency_phone"]   || "";
   const iban        = settings["iban"]           || "";
   const bic         = settings["bic"]            || "";
-  const bankName    = settings["bank_name"]      || "";
   const bankAcctNo  = settings["bank_account_number"] || "";
+  const bankName    = settings["bank_name"]      || "";
 
-  const items          = (invoice.items ?? []) as InvoiceItem[];
-  const rawSubtotal    = invoice.subtotal  ?? items.reduce((s, i) => s + i.total, 0);
-  const rawTaxAmount   = invoice.tax_amount ?? rawSubtotal * invoice.tax_rate / 100;
-  const rawTotal       = invoice.total     ?? rawSubtotal + rawTaxAmount;
-  // Apply exchange rate (1 = no conversion)
-  const subtotal  = rawSubtotal  * rate;
-  const taxAmount = rawTaxAmount * rate;
-  const total     = rawTotal     * rate;
-  const taxRate   = invoice.tax_rate ?? 0;
-  const showTax   = taxRate > 0;
+  const allItems     = (invoice.items ?? []) as InvoiceItem[];
+  const regularItems = allItems.filter((i) => !i.is_advance);
+  const advanceItems = allItems.filter((i) => i.is_advance);
+
+  const rawSubtotal  = invoice.subtotal  ?? regularItems.reduce((s, i) => s + i.total, 0);
+  const rawTaxAmount = invoice.tax_amount ?? rawSubtotal * invoice.tax_rate / 100;
+  const rawTotal     = invoice.total     ?? rawSubtotal + rawTaxAmount;
+  const taxRate      = invoice.tax_rate ?? 0;
+  const showTax      = taxRate > 0;
+
+  const totalAdvanceEur = advanceItems.reduce((s, i) => s + (i.total ?? 0), 0);
+  const remainingEur    = rawTotal - totalAdvanceEur;
 
   const clientAddress = [
     client.address_street,
@@ -704,40 +266,27 @@ export function InvoicePDF({
     client.address_country,
   ].filter(Boolean);
 
-  // Contact bar: phone Â· email
   const contactParts = [phone, email].filter(Boolean);
-  const contactLine  = contactParts.join("  ·  ");
-
-  // Tax label
-  const taxLabel = language === "bilingual"
-    ? `${taxRate}% ÁFA / MwSt.`
-    : language === "de"
-      ? `${taxRate}% MwSt.`
-      : `${taxRate}% ÁFA`;
+  const contactLine  = contactParts.join("  -  ");
+  const taxLabel     = `${taxRate}% MwSt. / AFA`;
 
   return (
     <Document
-      title={`${titleLabel(language)} ${invoice.invoice_number}`}
+      title={`Rechnungsaufstellung / Szamla reszletezo  ${invoice.invoice_number}`}
       author={companyName}
       creator="ZsuzsiCRM"
     >
       <Page size="A4" style={S.page}>
-
-        {/* â”€â”€ Leaf decoration â€” top right â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <LeafTopRight />
 
-        {/* â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.titleArea}>
-          <Text style={S.titleText}>{titleLabel(language)}</Text>
+          <Text style={S.titleText}>Rechnungsaufstellung  -  Szamla reszletezo</Text>
         </View>
-
-        {/* â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.divider} />
 
-        {/* â”€â”€ Client + meta block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.clientMetaRow}>
           <View style={S.clientBlock}>
-            <Text style={S.clientLabel}>{label("client", language)}</Text>
+            <Text style={S.clientLabel}>Rechnungsempfanger / Megrendelo:</Text>
             <Text style={S.clientName}>{client.last_name} {client.first_name}</Text>
             {clientAddress.map((line, i) => (
               <Text key={i} style={S.clientLine}>{line}</Text>
@@ -745,123 +294,128 @@ export function InvoicePDF({
             {client.phone && <Text style={S.clientLine}>{client.phone}</Text>}
             {client.email && <Text style={S.clientLine}>{client.email}</Text>}
           </View>
-
           <View style={S.metaBlock}>
-            <MetaRow lbl={label("date",   language)} val={fmtDate(invoice.issue_date)} />
-            <MetaRow lbl={label("invNum", language)} val={invoice.invoice_number}      />
+            <MetaRow lbl="Datum / Datum:"              val={fmtDate(invoice.issue_date)} />
+            <MetaRow lbl="Rechnungsnummer / Szam:"     val={invoice.invoice_number} />
             {invoice.service_date && (
-              <MetaRow lbl={label("serviceDate", language)} val={fmtDate(invoice.service_date)} />
+              <MetaRow lbl="Leistungsdatum / Teljesites:" val={fmtDate(invoice.service_date)} />
             )}
             {invoice.due_date && (
-              <MetaRow lbl={label("dueDate", language)} val={fmtDate(invoice.due_date)} />
+              <MetaRow lbl="Zahlungsziel / Hatarido:"  val={fmtDate(invoice.due_date)} />
             )}
           </View>
         </View>
 
-        {/* â”€â”€ Line-items table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.table}>
-          <TableHeaderRow lang={language} />
-          {items.map((item, i) => (
-            <TableItemRow key={i} item={item} index={i} currency={currency} rate={rate} />
+          <TableHeader />
+          {regularItems.map((item, i) => (
+            <TableItemRow key={i} item={item} index={i} eurHufRate={rate} />
           ))}
         </View>
 
-        {/* â”€â”€ Totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.totalsSection}>
           <View style={S.totalsBox}>
             {showTax && (
               <>
                 <View style={S.totalsRow}>
-                  <Text style={S.totalsLabel}>{label("netTotal", language)}</Text>
-                  <Text style={S.totalsValue}>{fmtMoney(subtotal, currency)}</Text>
+                  <Text style={S.totalsLabel}>Nettobetrag / Netto osszeg:</Text>
+                  <Text style={S.totalsEur}>{fmtEur(rawSubtotal)}</Text>
+                  <Text style={S.totalsHuf}>{fmtHuf(rawSubtotal * rate)}</Text>
                 </View>
                 <View style={S.totalsRow}>
                   <Text style={S.totalsLabel}>{taxLabel}:</Text>
-                  <Text style={S.totalsValue}>{fmtMoney(taxAmount, currency)}</Text>
+                  <Text style={S.totalsEur}>{fmtEur(rawTaxAmount)}</Text>
+                  <Text style={S.totalsHuf}>{fmtHuf(rawTaxAmount * rate)}</Text>
                 </View>
               </>
             )}
             <View style={S.totalFinalRow}>
-              <Text style={S.totalFinalLabel}>{label("total", language)}</Text>
-              <Text style={S.totalFinalValue}>{fmtMoney(total, currency)}</Text>
+              <Text style={S.totalFinalLabel}>GESAMT / OSSZESEN</Text>
+              <Text style={S.totalFinalEur}>{fmtEur(rawTotal)}</Text>
+              <Text style={S.totalFinalHuf}>{fmtHuf(rawTotal * rate)}</Text>
             </View>
+            {advanceItems.length > 0 && (
+              <>
+                {advanceItems.map((adv, idx) => (
+                  <View key={idx} style={S.advanceRow}>
+                    <Text style={S.advanceLabel}>Abzgl. Anzahlung / Levonva Eloleg:</Text>
+                    <Text style={S.advanceVal}>{fmtEur(-(adv.total ?? 0))}</Text>
+                    <Text style={S.advanceValHuf}>{fmtHuf(-(adv.total ?? 0) * rate)}</Text>
+                  </View>
+                ))}
+                <View style={S.remainRow}>
+                  <Text style={S.remainLabel}>Verbleibender Betrag / Fenmarado:</Text>
+                  <Text style={S.remainVal}>{fmtEur(remainingEur)}</Text>
+                  <Text style={S.remainValHuf}>{fmtHuf(remainingEur * rate)}</Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
-        {/* â”€â”€ Exchange-rate note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {rate !== 1 && (
-          <View style={S.rateNote}>
-            <Text style={S.rateNoteText}>
-              {language === "de"
-                ? `Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
-                : language === "bilingual"
-                  ? `Átváltás / Umrechnung: 1 EUR = ${Math.round(1 / rate)} Ft`
-                  : `Átváltás: 1 EUR = ${Math.round(1 / rate)} Ft`}
-            </Text>
-          </View>
-        )}
+        <View style={S.rateNote}>
+          <Text style={S.rateNoteText}>Atvaltas / Umrechnung: 1 EUR = {rate} Ft</Text>
+        </View>
 
-        {/* â”€â”€ Notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {invoice.notes ? (
           <View style={S.notesBox}>
-            <Text style={S.notesLabel}>{label("notes", language)}</Text>
+            <Text style={S.notesLabel}>Hinweis / Megjegyzes</Text>
             <Text style={S.notesText}>{invoice.notes}</Text>
           </View>
         ) : null}
 
-        {/* â”€â”€ Beneficiary / payment section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.beneSection}>
-          <Text style={S.beneTitle}>{label("beneficiary", language)}</Text>
-          <Text style={S.beneName}>{companyName}</Text>
-          <View style={S.beneGrid}>
-            {(bankAcctNo || bankName) ? (
+          <Text style={S.beneTitle}>EMPFANGER / KEDVEZMENYE ZETT</Text>
+          <View style={S.beneBody}>
+            <View style={S.beneLeft}>
+              <Text style={S.beneName}>{companyName}</Text>
+              {(bankAcctNo || bankName) ? (
+                <View style={S.beneRow}>
+                  <Text style={S.beneLabel}>Konto / Szamla:</Text>
+                  <Text style={S.beneValue}>{bankAcctNo || bankName}</Text>
+                </View>
+              ) : null}
+              {iban ? (
+                <View style={S.beneRow}>
+                  <Text style={S.beneLabel}>IBAN:</Text>
+                  <Text style={S.beneValue}>{iban}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={S.beneRight}>
+              {bic ? (
+                <View style={S.beneRow}>
+                  <Text style={S.beneLabel}>BIC/SWIFT:</Text>
+                  <Text style={S.beneValue}>{bic}</Text>
+                </View>
+              ) : null}
               <View style={S.beneRow}>
-                <Text style={S.beneLabel}>{label("bankAcct", language)}</Text>
-                <Text style={S.beneValue}>{bankAcctNo || bankName}</Text>
+                <Text style={S.beneLabel}>Verwendungszweck / Kozlemeny:</Text>
+                <Text style={[S.beneValue, { fontFamily: "Lato", fontWeight: 700 }]}>
+                  {invoice.invoice_number}
+                </Text>
               </View>
-            ) : null}
-            {iban ? (
-              <View style={S.beneRow}>
-                <Text style={S.beneLabel}>{label("iban", language)}</Text>
-                <Text style={S.beneValue}>{iban}</Text>
-              </View>
-            ) : null}
-            {bic ? (
-              <View style={S.beneRow}>
-                <Text style={S.beneLabel}>{label("bic", language)}</Text>
-                <Text style={S.beneValue}>{bic}</Text>
-              </View>
-            ) : null}
-          </View>
-          <View style={S.payRefRow}>
-            <Text style={S.beneLabel}>{label("payRef", language)}</Text>
-            <Text style={[S.beneValue, { fontFamily: "Lato", fontWeight: 700 }]}>
-              {invoice.invoice_number}
-            </Text>
+            </View>
           </View>
         </View>
 
-        {/* â”€â”€ Contact bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {contactLine ? (
           <View style={S.contactBar}>
             <Text style={S.contactText}>{contactLine}</Text>
           </View>
         ) : null}
 
-        {/* â”€â”€ Leaf decoration â€” bottom left â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <LeafBottomLeft />
 
-        {/* â”€â”€ Fixed footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <View style={S.footer} fixed>
           <Text style={S.footerText}>{companyName}</Text>
           <Text
             style={S.footerText}
             render={({ pageNumber, totalPages }) =>
-              pageLabel(pageNumber, totalPages, language)
+              `${pageNumber}. oldal / ${totalPages}  -  Seite ${pageNumber} von ${totalPages}`
             }
           />
         </View>
-
       </Page>
     </Document>
   );

@@ -3,8 +3,9 @@ import { z } from "zod";
 const invoiceItemSchema = z.object({
   description: z.string().min(1, "Kötelező mező"),
   quantity: z.coerce.number().positive(),
-  unit_price: z.coerce.number().min(0),
-  total: z.coerce.number().min(0),
+  unit_price: z.coerce.number(),
+  total: z.coerce.number(),
+  is_advance: z.boolean().optional(),
 });
 
 export const invoiceSchema = z.object({

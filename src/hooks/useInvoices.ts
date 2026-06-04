@@ -127,8 +127,9 @@ export function useInvoices() {
   const createInvoice = useCallback(
     (values: InvoiceFormValues): Promise<Invoice | null> => {
       return run(async () => {
-        // Compute subtotal, tax_amount, total from items
-        const subtotal = values.items.reduce((s, i) => s + i.total, 0);
+        // Advance items (is_advance=true) are excluded from the invoice total
+        const billableItems = values.items.filter((i) => !i.is_advance);
+        const subtotal = billableItems.reduce((s, i) => s + i.total, 0);
         const taxAmount = subtotal * values.tax_rate / 100;
         const total = subtotal + taxAmount;
 
@@ -263,23 +264,21 @@ export function useInvoices() {
           import("@/lib/invoice-pdf"),
         ]);
 
-        // Fetch live EUR/HUF exchange rate when converting currencies.
-        // Amounts are assumed to be stored in HUF; when displaying in EUR we divide by rate.
-        const targetCurrency = options?.currency ?? "EUR";
-        let exchangeRate: number | undefined;
-        if (targetCurrency === "EUR") {
-          try {
-            const rateRes = await fetch("/api/exchange-rate", {
-              signal: AbortSignal.timeout(4000),
-            });
-            if (rateRes.ok) {
-              const rateJson = await rateRes.json() as { rate?: number };
-              exchangeRate = rateJson.rate ?? undefined;
+        // Fetch live EUR/HUF exchange rate (stored values are in EUR).
+        // Returns how many HUF = 1 EUR (e.g. 395).
+        let eurHufRate = 395;
+        try {
+          const rateRes = await fetch("/api/exchange-rate", {
+            signal: AbortSignal.timeout(4000),
+          });
+          if (rateRes.ok) {
+            const rateJson = await rateRes.json() as { rate?: number };
+            if (rateJson.rate && rateJson.rate > 1) {
+              eurHufRate = Math.round(rateJson.rate);
             }
-          } catch {
-            // Fallback to approximate rate if proxy is unreachable
-            exchangeRate = 1 / 400;
           }
+        } catch {
+          // keep default 395
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -287,9 +286,7 @@ export function useInvoices() {
           invoice: invoice as unknown as Invoice,
           client: (invoice as unknown as { client: Client }).client,
           settings,
-          language: options?.language ?? "hu",
-          currency: targetCurrency,
-          exchangeRate,
+          eurHufRate,
         }) as any;
         const blob = await pdf(element).toBlob();
 
