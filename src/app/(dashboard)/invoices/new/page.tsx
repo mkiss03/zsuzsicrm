@@ -414,17 +414,18 @@ export default function NewInvoicePage() {
             <div className="space-y-2">
               {FIXED_ITEMS.map((item) => {
                 const rawVal = prices[item.key];
-                const eurVal = item.isDiscount ? -(Math.abs(rawVal)) : rawVal;
+                const isDiscount = item.key === "discount";
+                const isAdvance  = item.key === "advance";
                 return (
                   <div key={item.key} className={cn(
                     "grid grid-cols-[1fr_130px_130px_110px] gap-2 items-center rounded-md px-1 py-1",
-                    item.isAdvance && "bg-amber-50 border border-amber-100",
-                    item.isDiscount && "bg-red-50 border border-red-100",
+                    isAdvance  && "bg-amber-50 border border-amber-100",
+                    isDiscount && "bg-red-50 border border-red-100",
                   )}>
                     <div>
                       <p className="text-sm font-medium text-zinc-800">{item.label}</p>
-                      {item.isAdvance && <p className="text-xs text-amber-600 mt-0.5">Nem szamit bele a totalba</p>}
-                      {item.isDiscount && <p className="text-xs text-red-500 mt-0.5">Kedvezmeny (levonva)</p>}
+                      {isAdvance  && <p className="text-xs text-amber-600 mt-0.5">Nem szamit bele a totalba</p>}
+                      {isDiscount && <p className="text-xs text-red-500 mt-0.5">Kedvezmeny (levonva)</p>}
                     </div>
                     <div className="relative">
                       <Input
@@ -438,10 +439,10 @@ export default function NewInvoicePage() {
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">EUR</span>
                     </div>
                     <p className="text-sm text-right text-zinc-600 pr-1">
-                      {fmtHuf(Math.abs(rawVal) * (item.isDiscount ? -1 : 1), eurHufRate)}
+                      {fmtHuf(Math.abs(rawVal) * (isDiscount ? -1 : 1), eurHufRate)}
                     </p>
-                    <p className={cn("text-sm font-medium text-right pr-1", item.isDiscount && "text-red-600", item.isAdvance && "text-amber-700")}>
-                      {fmtEur(item.isDiscount ? -(Math.abs(rawVal)) : rawVal)}
+                    <p className={cn("text-sm font-medium text-right pr-1", isDiscount && "text-red-600", isAdvance && "text-amber-700")}>
+                      {fmtEur(isDiscount ? -(Math.abs(rawVal)) : rawVal)}
                     </p>
                   </div>
                 );
