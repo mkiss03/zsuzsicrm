@@ -247,7 +247,7 @@ function CompanyTab({
     "agency_street", "agency_zip", "agency_city", "agency_country",
     "agency_email", "agency_phone",
     "agency_tax_number", "uid_nummer",
-    "iban", "bic", "bank_name",
+    "iban", "bic", "bank_name", "bank_account_number",
     "company_logo_url",
   ];
 
@@ -365,6 +365,9 @@ function CompanyTab({
       <Section title="Bankszámla">
         <Field label="IBAN" hint="pl. AT60 1234 5678 9012 3456">
           <Input value={get("iban")} onChange={(e) => set("iban", e.target.value)} className="h-9 font-mono" />
+        </Field>
+        <Field label="Bankszámlaszám" hint="pl. 11773016-12345678-00000000">
+          <Input value={get("bank_account_number")} onChange={(e) => set("bank_account_number", e.target.value)} className="h-9 font-mono" />
         </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="BIC / SWIFT">

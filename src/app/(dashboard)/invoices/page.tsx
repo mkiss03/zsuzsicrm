@@ -112,8 +112,8 @@ export default function InvoicesPage() {
   const [paidTarget, setPaidTarget]       = useState<InvoiceRow | null>(null);
   const [deleteTarget, setDeleteTarget]   = useState<InvoiceRow | null>(null);
   const [downloading, setDownloading]     = useState<string | null>(null);
-  const [currency, setCurrency]           = useState<"HUF" | "EUR">("HUF");
-  const [eurRate, setEurRate]             = useState<number>(1 / 400);
+  const [currency, setCurrency]           = useState<"HUF" | "EUR">("EUR");
+  const [eurRate, setEurRate]             = useState<number>(400);
 
   const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
   const MONTHS = Array.from({ length: 18 }, (_, i) => {
@@ -145,15 +145,15 @@ export default function InvoicesPage() {
     fetch("/api/exchange-rate")
       .then((r) => r.json() as Promise<{ rate?: number }>)
       .then((d) => { if (d.rate) setEurRate(d.rate); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const fmt = useCallback(
     (n: number | null | undefined): string => {
       if (n == null) return currency === "EUR" ? "€ —" : "— Ft";
       return currency === "EUR"
-        ? new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n * eurRate)
-        : new Intl.NumberFormat("hu-HU", { style: "currency", currency: "HUF", maximumFractionDigits: 0 }).format(n);
+        ? new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
+        : new Intl.NumberFormat("hu-HU", { style: "currency", currency: "HUF", maximumFractionDigits: 0 }).format(n * eurRate);
     },
     [currency, eurRate],
   );
