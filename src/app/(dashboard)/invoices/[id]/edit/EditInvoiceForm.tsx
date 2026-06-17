@@ -148,10 +148,12 @@ export default function EditInvoiceForm({ invoice, settings: initialSettings }: 
   const refreshPreview = useCallback(async () => {
     setPreviewLoading(true);
     try {
-      const [{ pdf }, { InvoicePDF }] = await Promise.all([
+      const [{ pdf }, invoicePdfModule] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/lib/invoice-pdf"),
       ]);
+      const { InvoicePDF, ensureFonts } = invoicePdfModule;
+      ensureFonts();
       const itemsForPreview = buildItems();
       const invoiceData = {
         ...invoice,

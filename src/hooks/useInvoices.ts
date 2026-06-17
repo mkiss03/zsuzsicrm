@@ -260,10 +260,12 @@ export function useInvoices() {
           ),
         );
 
-        const [{ pdf }, { InvoicePDF }] = await Promise.all([
+        const [{ pdf }, invoicePdfModule] = await Promise.all([
           import("@react-pdf/renderer"),
           import("@/lib/invoice-pdf"),
         ]);
+        const { InvoicePDF, ensureFonts } = invoicePdfModule;
+        ensureFonts();
 
         // Fetch live EUR/HUF exchange rate (stored values are in EUR).
         // Returns how many HUF = 1 EUR (e.g. 395).

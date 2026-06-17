@@ -248,10 +248,12 @@ export default function NewInvoicePage() {
     if (!selectedClient) { setPreviewUrl(null); return; }
     setPreviewLoading(true);
     try {
-      const [{ pdf }, { InvoicePDF }] = await Promise.all([
+      const [{ pdf }, invoicePdfModule] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/lib/invoice-pdf"),
       ]);
+      const { InvoicePDF, ensureFonts } = invoicePdfModule;
+      ensureFonts();
       const itemsForPreview = buildItems();
       const subtotalRnd  = Math.round(subtotal  * 100) / 100;
       const taxAmountRnd = Math.round(taxAmount * 100) / 100;
