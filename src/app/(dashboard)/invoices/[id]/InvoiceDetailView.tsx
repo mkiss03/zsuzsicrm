@@ -13,6 +13,7 @@ import {
   Loader2,
   Clock,
   Send,
+  Pencil,
   Check,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -180,6 +181,13 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {isEditable && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/invoices/${invoice.id}/edit`}>
+                <Pencil className="mr-2 h-4 w-4" />Szerkesztés
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleDownload} disabled={pdfLoading}>
             {pdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
             PDF letöltés
