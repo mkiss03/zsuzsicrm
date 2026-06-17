@@ -19,28 +19,14 @@ import {
   Path,
 } from "@react-pdf/renderer";
 
-function getOrigin(): string {
-  if (typeof window !== "undefined") return window.location.origin;
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
-
-let fontsRegistered = false;
-export function ensureFonts() {
-  if (fontsRegistered) return;
-  fontsRegistered = true;
-  const origin = getOrigin();
-  Font.register({
-    family: "Lato",
-    fonts: [
-      { src: `${origin}/fonts/Lato-Regular.ttf`, fontWeight: 400 },
-      { src: `${origin}/fonts/Lato-Bold.ttf`,    fontWeight: 700 },
-    ],
-  });
-  Font.registerHyphenationCallback((word) => [word]);
-}
-ensureFonts();
+Font.register({
+  family: "Lato",
+  fonts: [
+    { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Regular.ttf", fontWeight: 400 },
+    { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Bold.ttf",    fontWeight: 700 },
+  ],
+});
+Font.registerHyphenationCallback((word) => [word]);
 
 import type { Invoice, Client, InvoiceItem } from "@/types";
 
@@ -413,7 +399,7 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
 
         {footerText ? (
           <View style={{ ...S.contactBar, marginTop: 6 }}>
-            <Text style={{ ...S.contactText, fontFamily: "Lato", fontStyle: "italic" }}>{footerText}</Text>
+            <Text style={S.contactText}>{footerText}</Text>
           </View>
         ) : null}
 
