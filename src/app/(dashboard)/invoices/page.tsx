@@ -14,6 +14,7 @@ import {
   TrendingUp,
   AlertCircle,
   Clock,
+  Pencil,
 } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -361,6 +362,11 @@ export default function InvoicesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
+                      {inv.status === "draft" && (
+                        <DropdownMenuItem onClick={() => router.push(`/invoices/${inv.id}/edit`)}>
+                          <Pencil className="mr-2 h-4 w-4" />Szerkesztés
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => handleDownloadPDF(inv)}
                         disabled={downloading === inv.id}
