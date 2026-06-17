@@ -360,10 +360,16 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
           <View style={S.beneBody}>
             <View style={S.beneLeft}>
               <Text style={S.beneName}>{companyName}</Text>
-              {(bankAcctNo || bankName) ? (
+              {bankName ? (
                 <View style={S.beneRow}>
-                  <Text style={S.beneLabel}>Konto / Számla:</Text>
-                  <Text style={S.beneValue}>{bankAcctNo || bankName}</Text>
+                  <Text style={S.beneLabel}>Bank:</Text>
+                  <Text style={S.beneValue}>{bankName}</Text>
+                </View>
+              ) : null}
+              {bankAcctNo ? (
+                <View style={S.beneRow}>
+                  <Text style={S.beneLabel}>Konto / Számlaszám:</Text>
+                  <Text style={S.beneValue}>{bankAcctNo}</Text>
                 </View>
               ) : null}
               {iban ? (
