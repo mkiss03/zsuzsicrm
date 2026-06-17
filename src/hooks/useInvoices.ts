@@ -46,6 +46,7 @@ export interface AgencySettings {
   bic: string;
   bank_name: string;
   invoice_footer_text: string;
+  invoice_default_notes: string;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -318,7 +319,8 @@ export function useInvoices() {
         iban:                m["iban"]                 ?? "",
         bic:                 m["bic"]                  ?? "",
         bank_name:           m["bank_name"]            ?? "",
-        invoice_footer_text: m["invoice_footer_text"]  ?? "Vielen Dank für Ihr Vertrauen!",
+        invoice_footer_text: m["invoice_footer_text"]  ?? "Vielen Dank für Ihr Vertrauen!\nKöszönöm a bizalmat!",
+        invoice_default_notes: m["invoice_default_notes"] ?? "Ez az ajánlat egy hétig , azaz a befizetési határidőig érvényes!\nAz utazásra előleg befizetéssel biztosítod a helyedet.\nA fennmaradó összeget, amiből a helyi kiadásokat fedezzük, kérlek hozd magaddal euróban!",
       };
     });
   }, []);

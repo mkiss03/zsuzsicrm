@@ -246,6 +246,7 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
   const bic         = settings["bic"]            || "";
   const bankAcctNo  = settings["bank_account_number"] || "";
   const bankName    = settings["bank_name"]      || "";
+  const footerText  = settings["invoice_footer_text"] || "";
 
   const allItems     = (invoice.items ?? []) as InvoiceItem[];
   const regularItems = allItems.filter((i) => !i.is_advance);
@@ -395,6 +396,12 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
             </View>
           </View>
         </View>
+
+        {footerText ? (
+          <View style={{ ...S.contactBar, marginTop: 6 }}>
+            <Text style={{ ...S.contactText, fontFamily: "Lato", fontStyle: "italic" }}>{footerText}</Text>
+          </View>
+        ) : null}
 
         {contactLine ? (
           <View style={S.contactBar}>

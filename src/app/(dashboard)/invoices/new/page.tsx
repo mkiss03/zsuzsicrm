@@ -165,7 +165,15 @@ export default function NewInvoicePage() {
 
   // Fetch agency settings + live exchange rate on mount
   useEffect(() => {
-    void getAgencySettings().then((s) => { if (s) setAgencySettings(s as unknown as Record<string, string>); });
+    void getAgencySettings().then((s) => {
+      if (s) {
+        const rec = s as unknown as Record<string, string>;
+        setAgencySettings(rec);
+        if (rec["invoice_default_notes"] && !notes) {
+          setNotes(rec["invoice_default_notes"]);
+        }
+      }
+    });
     fetch("/api/exchange-rate")
       .then((r) => r.json() as Promise<{ rate?: number }>)
       .then(({ rate }) => { if (rate && rate > 1) setEurHufRate(Math.round(rate)); })
