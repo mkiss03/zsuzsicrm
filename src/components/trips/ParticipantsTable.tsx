@@ -224,8 +224,9 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
       finalAmount: acc.finalAmount + (p.final_amount ?? 0),
       depositPaid: acc.depositPaid + (p.deposit_paid_at ? 1 : 0),
       fullyPaid: acc.fullyPaid + (p.fully_paid_at ? 1 : 0),
+      totalPersons: acc.totalPersons + (p.party_size ?? 1),
     }),
-    { baseAmount: 0, discountAmount: 0, finalAmount: 0, depositPaid: 0, fullyPaid: 0 }
+    { baseAmount: 0, discountAmount: 0, finalAmount: 0, depositPaid: 0, fullyPaid: 0, totalPersons: 0 }
   );
 
   if (loading) {
@@ -243,7 +244,8 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
       {/* Top action bar */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-zinc-500">
-          {participants.length} résztvevő
+          {participants.length} foglalás
+          {totals.totalPersons !== participants.length && ` · ${totals.totalPersons} fő összesen`}
         </span>
         <Button
           asChild
@@ -373,6 +375,11 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
                       {p.client.is_vip && (
                         <Badge variant="warning" className="text-[10px] px-1">VIP</Badge>
                       )}
+                      {(p.party_size ?? 1) > 1 && (
+                        <Badge variant="muted" className="text-[10px] px-1">
+                          {p.party_size} fő
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-xs text-zinc-400">{p.client.email}</div>
                   </td>
@@ -472,7 +479,7 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
             <tfoot className="border-t-2 border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-600">
               <tr>
                 <td colSpan={4} className="px-4 py-3">
-                  Összesítő ({participants.length} fő)
+                  Összesítő ({participants.length} foglalás{totals.totalPersons !== participants.length ? ` · ${totals.totalPersons} fő` : ""})
                 </td>
                 <td className="px-4 py-3 text-right">{formatCurrency(totals.baseAmount)}</td>
                 <td className="px-4 py-3 text-right text-amber-600">

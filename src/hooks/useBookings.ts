@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Booking, BookingStatus, Payment, PaymentType, ClientSource } from "@/types";
+import type { Booking, BookingStatus, BookingParticipant, Payment, PaymentType, ClientSource } from "@/types";
 import type { BookingFormValues, PaymentFormValues } from "@/lib/validators/booking";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
@@ -180,12 +180,12 @@ export function useBookings() {
 
   // ── getBookingById ─────────────────────────────────────────────────────────
   const getBookingById = useCallback(
-    (id: string): Promise<(Booking & { client: Record<string, unknown>; trip: Record<string, unknown> }) | null> => {
+    (id: string): Promise<(Booking & { client: Record<string, unknown>; trip: Record<string, unknown>; participants?: BookingParticipant[] }) | null> => {
       return run(async () => {
         const { data, error: sbErr } = await supabase
           .from("bookings")
           .select(
-            `*, client:clients(*), trip:trips(*), payments:payments(*)`,
+            `*, client:clients(*), trip:trips(*), payments:payments(*), participants:booking_participants(*)`,
           )
           .eq("id", id)
           .is("deleted_at", null)
@@ -197,10 +197,82 @@ export function useBookings() {
     [],
   );
 
+  // ── getBookingParticipants ────────────────────────────────────────────────
+  const getBookingParticipants = useCallback(
+    (bookingId: string): Promise<BookingParticipant[] | null> => {
+      return run(async () => {
+        const { data, error: sbErr } = await supabase
+          .from("booking_participants")
+          .select("*")
+          .eq("booking_id", bookingId)
+          .order("is_lead", { ascending: false });
+        if (sbErr) throw new Error(sbErr.message);
+        return (data ?? []) as BookingParticipant[];
+      });
+    },
+    [],
+  );
+
+  // ── addParticipant ────────────────────────────────────────────────────────
+  const addParticipant = useCallback(
+    (bookingId: string, participant: { client_id?: string | null; name: string; is_lead?: boolean; notes?: string | null }): Promise<BookingParticipant | null> => {
+      return run(async () => {
+        const { data, error: sbErr } = await supabase
+          .from("booking_participants")
+          .insert({
+            booking_id: bookingId,
+            client_id: participant.client_id ?? null,
+            name: participant.name,
+            is_lead: participant.is_lead ?? false,
+            notes: participant.notes ?? null,
+          })
+          .select()
+          .single();
+        if (sbErr) throw new Error(sbErr.message);
+
+        // Update party_size
+        const { count } = await supabase
+          .from("booking_participants")
+          .select("*", { count: "exact", head: true })
+          .eq("booking_id", bookingId);
+        await supabase
+          .from("bookings")
+          .update({ party_size: count ?? 1 })
+          .eq("id", bookingId);
+
+        return data as BookingParticipant;
+      });
+    },
+    [],
+  );
+
+  // ── removeParticipant ─────────────────────────────────────────────────────
+  const removeParticipant = useCallback(
+    (participantId: string, bookingId: string): Promise<boolean | null> => {
+      return run(async () => {
+        await supabase.from("booking_participants").delete().eq("id", participantId);
+
+        const { count } = await supabase
+          .from("booking_participants")
+          .select("*", { count: "exact", head: true })
+          .eq("booking_id", bookingId);
+        await supabase
+          .from("bookings")
+          .update({ party_size: Math.max(count ?? 1, 1) })
+          .eq("id", bookingId);
+
+        return true;
+      });
+    },
+    [],
+  );
+
   // ── createBooking ──────────────────────────────────────────────────────────
   const createBooking = useCallback(
     (values: BookingFormValues): Promise<Booking | null> => {
       return run(async () => {
+        const partySize = values.party_size ?? 1;
+
         // ── Capacity guard ──────────────────────────────────────────────────
         if (values.trip_id) {
           const { data: tripCap } = await supabase
@@ -210,29 +282,44 @@ export function useBookings() {
             .single();
           if (tripCap) {
             const t = tripCap as { max_capacity: number; current_bookings: number; status: string; name: string };
-            if (t.status === "full" || t.current_bookings >= t.max_capacity) {
+            const available = t.max_capacity - t.current_bookings;
+            if (t.status === "full" || available < partySize) {
               throw new Error(
-                `"${t.name}" utazás megtelt (${t.current_bookings}/${t.max_capacity}). Foglalás nem hozható létre.`,
+                `"${t.name}" utazás – nincs elég szabad hely (${available} szabad, ${partySize} szükséges).`,
               );
             }
           }
         }
 
+        const { participants: participantsInput, ...bookingValues } = values;
         const { data, error: sbErr } = await supabase
           .from("bookings")
           .insert({
-            ...values,
-            base_amount: values.base_amount ?? null,
-            final_amount: values.final_amount ?? null,
-            deposit_amount: values.deposit_amount ?? null,
-            payment_deadline: values.payment_deadline ?? null,
-            notes: values.notes || null,
-            source: values.source ?? null,
+            ...bookingValues,
+            party_size: partySize,
+            base_amount: bookingValues.base_amount ?? null,
+            final_amount: bookingValues.final_amount ?? null,
+            deposit_amount: bookingValues.deposit_amount ?? null,
+            payment_deadline: bookingValues.payment_deadline ?? null,
+            notes: bookingValues.notes || null,
+            source: bookingValues.source ?? null,
           })
           .select()
           .single();
         if (sbErr) throw new Error(sbErr.message);
         const booking = data as Booking;
+
+        // ── Save participants ───────────────────────────────────────────────
+        if (participantsInput && participantsInput.length > 0) {
+          const rows = participantsInput.map((p) => ({
+            booking_id: booking.id,
+            client_id: p.client_id ?? null,
+            name: p.name,
+            is_lead: p.is_lead ?? false,
+            notes: p.notes ?? null,
+          }));
+          await supabase.from("booking_participants").insert(rows);
+        }
 
         // Fire new_booking notification — best-effort, never throw
         void (async () => {
@@ -499,5 +586,8 @@ export function useBookings() {
     addPayment,
     deletePayment,
     getBookingStats,
+    getBookingParticipants,
+    addParticipant,
+    removeParticipant,
   };
 }

@@ -13,6 +13,7 @@ import {
   CalendarDays,
   MapPin,
   User,
+  Users,
   Phone,
   AtSign,
   Tag,
@@ -31,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import type { Booking, BookingStatus, Client, Trip, Payment } from "@/types";
+import type { Booking, BookingParticipant, BookingStatus, Client, Trip, Payment } from "@/types";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 
 // ─── Discount level labels ────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof User; label: strin
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  booking: Booking & { client: Client; trip: Trip | null };
+  booking: Booking & { client: Client; trip: Trip | null; participants?: BookingParticipant[] };
   initialPayments: Payment[];
 }
 
@@ -130,15 +131,23 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
       return;
     }
 
+    const tripName = trip?.name ?? "Utazás";
+    const participantNames = booking.participants && booking.participants.length > 1
+      ? booking.participants.map((p) => p.name).join(", ")
+      : null;
+    const description = participantNames
+      ? `${tripName} (${participantNames})`
+      : tripName;
+
     const { error } = await supabase.from("invoices").insert({
       client_id: booking.client_id,
       booking_id: booking.id,
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),
       items: [{
-        description: trip?.name ?? "Utazás",
-        quantity: 1,
-        unit_price: booking.final_amount ?? 0,
+        description,
+        quantity: booking.party_size ?? 1,
+        unit_price: (booking.final_amount ?? 0) / (booking.party_size ?? 1),
         total: booking.final_amount ?? 0,
       }],
       subtotal: booking.final_amount ?? 0,
@@ -266,6 +275,50 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
           )}
         </div>
       </div>
+
+      {/* Participants (only if party_size > 1 or has participants) */}
+      {(booking.party_size > 1 || (booking.participants && booking.participants.length > 0)) && (
+        <div className="rounded-md border border-zinc-200 bg-white p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-4 w-4 text-zinc-400" />
+            <h3 className="text-sm font-semibold text-zinc-700">
+              Résztvevők ({booking.party_size} fő)
+            </h3>
+          </div>
+          {booking.participants && booking.participants.length > 0 ? (
+            <div className="divide-y divide-zinc-100">
+              {booking.participants.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 py-2.5">
+                  <User className="h-4 w-4 text-zinc-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-900">{p.name}</span>
+                      {p.is_lead && (
+                        <Badge variant="muted" className="text-[10px] px-1">Főfoglaló</Badge>
+                      )}
+                    </div>
+                    {p.notes && (
+                      <p className="text-xs text-zinc-400 mt-0.5">{p.notes}</p>
+                    )}
+                  </div>
+                  {p.client_id && (
+                    <Link
+                      href={`/clients/${p.client_id}`}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Profil →
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">
+              {booking.party_size} fő (résztvevők nem lettek megadva név szerint)
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Financial breakdown */}
       <div className="rounded-md border border-zinc-200 bg-white p-5">

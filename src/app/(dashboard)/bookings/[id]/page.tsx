@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BookingDetailView } from "./BookingDetailView";
-import type { Booking, Client, Trip, Payment } from "@/types";
+import type { Booking, BookingParticipant, Client, Trip, Payment } from "@/types";
 
 interface Props {
   params: { id: string };
@@ -23,7 +23,7 @@ export default async function BookingDetailPage({ params }: Props) {
 
   const { data: booking } = await supabase
     .from("bookings")
-    .select("*, client:clients(*), trip:trips(*), payments:payments(*)")
+    .select("*, client:clients(*), trip:trips(*), payments:payments(*), participants:booking_participants(*)")
     .eq("id", params.id)
     .is("deleted_at", null)
     .single();
@@ -34,11 +34,12 @@ export default async function BookingDetailPage({ params }: Props) {
     client: Client;
     trip: Trip | null;
     payments: Payment[];
+    participants: BookingParticipant[];
   };
 
   return (
     <BookingDetailView
-      booking={b}
+      booking={{ ...b, participants: b.participants ?? [] }}
       initialPayments={b.payments ?? []}
     />
   );

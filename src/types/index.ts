@@ -126,6 +126,7 @@ export interface Booking {
   client_id: string;
   trip_id: string;
   status: BookingStatus;
+  party_size: number;
   base_amount: number | null;
   discount_percentage: number;
   discount_amount: number;
@@ -139,6 +140,16 @@ export interface Booking {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export interface BookingParticipant {
+  id: string;
+  booking_id: string;
+  client_id: string | null;
+  name: string;
+  is_lead: boolean;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface Payment {

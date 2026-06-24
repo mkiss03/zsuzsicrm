@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Check, Search, X, Loader2, Star, Info } from "lucide-react";
+import { ArrowLeft, Check, Search, X, Loader2, Star, Info, UserPlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { addDays, format } from "date-fns";
 import { Controller, useForm } from "react-hook-form";
@@ -306,6 +306,16 @@ function Step2({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── Participant row type ─────────────────────────────────────────────────────
+
+interface ParticipantRow {
+  key: string;
+  client_id: string | null;
+  name: string;
+  is_lead: boolean;
+  notes: string;
+}
+
 export default function NewBookingPage() {
   const router = useRouter();
   const { createBooking, loading } = useBookings();
@@ -316,18 +326,24 @@ export default function NewBookingPage() {
   const [savedBookingId, setSavedBookingId] = useState<string | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
 
+  // Participants state
+  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+
   // Pricing state
   const [manualEnabled, setManualEnabled]   = useState(false);
   const [manualType, setManualType]         = useState<"percent" | "amount">("percent");
   const [manualValue, setManualValue]       = useState(0);
 
-  // Computed pricing
-  const baseAmount = (() => {
+  const partySize = Math.max(participants.length, 1);
+
+  // Computed pricing (per-person base * party size)
+  const perPersonPrice = (() => {
     if (!selectedTrip || !selectedClient) return 0;
     return selectedClient.is_vip && selectedTrip.vip_price
       ? selectedTrip.vip_price
       : selectedTrip.base_price;
   })();
+  const baseAmount = perPersonPrice * partySize;
 
   const autoPct         = getDiscountPct(selectedClient?.discount_level ?? 0);
   const autoDiscount    = baseAmount * autoPct / 100;
@@ -348,6 +364,39 @@ export default function NewBookingPage() {
     },
   });
 
+  // Initialize lead participant when client is selected
+  function handleClientSelect(c: Client | null) {
+    setSelectedClient(c);
+    if (c) {
+      setParticipants([{
+        key: crypto.randomUUID(),
+        client_id: c.id,
+        name: `${c.last_name} ${c.first_name}`,
+        is_lead: true,
+        notes: "",
+      }]);
+    } else {
+      setParticipants([]);
+    }
+  }
+
+  function addParticipantRow() {
+    setParticipants((prev) => [
+      ...prev,
+      { key: crypto.randomUUID(), client_id: null, name: "", is_lead: false, notes: "" },
+    ]);
+  }
+
+  function removeParticipantRow(key: string) {
+    setParticipants((prev) => prev.filter((p) => p.key !== key));
+  }
+
+  function updateParticipantRow(key: string, field: keyof ParticipantRow, value: string | boolean | null) {
+    setParticipants((prev) =>
+      prev.map((p) => (p.key === key ? { ...p, [field]: value } : p)),
+    );
+  }
+
   const steps = ["Ügyfél", "Utazás", "Árazás & Mentés"];
 
   function canProceed() {
@@ -360,10 +409,12 @@ export default function NewBookingPage() {
     if (!selectedClient || !selectedTrip) return;
     const formValues = getValues();
     const discountPct = autoPct + (manualEnabled && manualType === "percent" ? manualValue : 0);
+    const validParticipants = participants.filter((p) => p.name.trim());
     const payload: BookingFormValues = {
       client_id: selectedClient.id,
       trip_id: selectedTrip.id,
       status: "booked",
+      party_size: Math.max(validParticipants.length, 1),
       base_amount: baseAmount,
       discount_percentage: discountPct,
       discount_amount: Math.round(totalDiscount * 100) / 100,
@@ -372,6 +423,12 @@ export default function NewBookingPage() {
       payment_deadline: formValues.payment_deadline || defaultDeadline,
       source: (formValues.source || null) as ClientSource | null,
       notes: formValues.notes || undefined,
+      participants: validParticipants.map((p) => ({
+        client_id: p.client_id,
+        name: p.name,
+        is_lead: p.is_lead,
+        notes: p.notes || null,
+      })),
     };
 
     const booking = await createBooking(payload);
@@ -398,7 +455,7 @@ export default function NewBookingPage() {
         <StepIndicator current={step} steps={steps} />
 
         {step === 0 && (
-          <Step1 selectedClient={selectedClient} onSelect={setSelectedClient} />
+          <Step1 selectedClient={selectedClient} onSelect={handleClientSelect} />
         )}
         {step === 1 && (
           <Step2 selectedTrip={selectedTrip} selectedClient={selectedClient} onSelect={setSelectedTrip} />
@@ -418,6 +475,56 @@ export default function NewBookingPage() {
                     <strong>{autoPct}% ({DISCOUNT_LEVELS.find((d) => d.pct === autoPct)?.label} szint)</strong>
                   </div>
                 )}
+
+                {/* Participants */}
+                <div className="rounded-md border border-zinc-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-zinc-700">
+                      Résztvevők ({participants.length} fő)
+                    </h4>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={addParticipantRow}
+                    >
+                      <UserPlus className="mr-1 h-3.5 w-3.5" />
+                      Résztvevő hozzáadása
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {participants.map((p) => (
+                      <div key={p.key} className="flex items-center gap-2">
+                        <Input
+                          value={p.name}
+                          onChange={(e) => updateParticipantRow(p.key, "name", e.target.value)}
+                          placeholder="Név"
+                          className="flex-1 h-9"
+                          disabled={p.is_lead}
+                        />
+                        {p.is_lead ? (
+                          <Badge variant="muted" className="text-[10px] px-2 shrink-0">
+                            Főfoglaló
+                          </Badge>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removeParticipantRow(p.key)}
+                            className="text-zinc-400 hover:text-red-500 p-1"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {partySize > 1 && (
+                    <p className="text-xs text-zinc-500">
+                      Az ár {partySize} főre számolva: {partySize} × {formatCurrency(perPersonPrice)} = {formatCurrency(baseAmount)}
+                    </p>
+                  )}
+                </div>
 
                 {/* Manual discount toggle */}
                 <div>
@@ -507,7 +614,9 @@ export default function NewBookingPage() {
                     Ár összefoglaló
                   </h4>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Alap ár</span>
+                    <span className="text-zinc-500">
+                      Alap ár{partySize > 1 ? ` (${partySize} fő)` : ""}
+                    </span>
                     <span className="font-medium">{formatCurrency(baseAmount)}</span>
                   </div>
                   {autoDiscount > 0 && (
@@ -530,6 +639,12 @@ export default function NewBookingPage() {
                     <span>Előleg (30%)</span>
                     <span>{formatCurrency(depositAmount)}</span>
                   </div>
+                  {partySize > 1 && (
+                    <div className="flex justify-between text-sm text-zinc-500">
+                      <span>Létszám</span>
+                      <span>{partySize} fő</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm text-zinc-500">
                     <span>Ügyfél</span>
                     <span>{selectedClient.last_name} {selectedClient.first_name}</span>
