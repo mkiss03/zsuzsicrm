@@ -399,7 +399,7 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
 
         {footerText ? (
           <View style={{ ...S.contactBar, marginTop: 6 }}>
-            <Text style={{ ...S.contactText, fontFamily: "Lato", fontStyle: "italic" }}>{footerText}</Text>
+            <Text style={S.contactText}>{footerText}</Text>
           </View>
         ) : null}
 
