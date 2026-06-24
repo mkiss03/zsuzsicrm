@@ -761,6 +761,8 @@ export function TripDetailView({ trip: initialTrip }: Props) {
     const ok = await deleteTrip(trip.id);
     if (ok) {
       toast.success("Utazás törölve");
+      setShowDeleteDialog(false);
+      router.refresh();
       router.push("/trips");
     } else {
       toast.error("Hiba a törlés során");

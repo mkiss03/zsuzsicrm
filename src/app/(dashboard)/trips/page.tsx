@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, LayoutGrid, List, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, LayoutGrid, List, Search, X, MoreHorizontal, Eye, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useTrips, type TripListParams } from "@/hooks/useTrips";
@@ -12,6 +13,7 @@ import { TripCard, TripCardSkeleton } from "@/components/trips/TripCard";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { TripStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { Plane } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -45,7 +54,11 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 
 // ─── Table column definitions ─────────────────────────────────────────────────
 
-const TABLE_COLUMNS: Column<Trip>[] = [
+function makeTableColumns(
+  router: ReturnType<typeof useRouter>,
+  setDeleteTarget: (t: Trip) => void,
+): Column<Trip>[] {
+  return [
   {
     key: "trip_code",
     header: "Kód",
@@ -111,14 +124,32 @@ const TABLE_COLUMNS: Column<Trip>[] = [
     header: "",
     className: "w-10 text-right",
     render: (_, row) => (
-      <div className="flex items-center gap-1 justify-end">
-        <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-          <Link href={`/trips/${row.id}`}>Részletek</Link>
-        </Button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Műveletek</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onClick={() => router.push(`/trips/${row.id}`)}>
+            <Eye className="mr-2 h-4 w-4" />
+            Megtekint
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            onClick={() => setDeleteTarget(row)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Töröl
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     ),
   },
-];
+  ];
+}
 
 // ─── View toggle ──────────────────────────────────────────────────────────────
 
@@ -132,7 +163,8 @@ function getInitialView(): ViewMode {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TripsPage() {
-  const { getTrips, loading } = useTrips();
+  const router = useRouter();
+  const { getTrips, deleteTrip, loading } = useTrips();
   const supabase = createClient();
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -140,6 +172,7 @@ export default function TripsPage() {
   const [page, setPage] = useState(1);
   const [view, setView] = useState<ViewMode>(getInitialView);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Trip | null>(null);
 
   // Filters
   const [destination, setDestination] = useState("");
@@ -186,6 +219,19 @@ export default function TripsPage() {
   useEffect(() => {
     localStorage.setItem("trips-view", view);
   }, [view]);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const ok = await deleteTrip(deleteTarget.id);
+    setDeleteTarget(null);
+    if (ok) {
+      toast.success("Utazás törölve");
+      setTrips((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+      setCount((n) => n - 1);
+    } else {
+      toast.error("Hiba a törlés során");
+    }
+  }
 
   const showEmpty = !loading && trips.length === 0;
 
@@ -328,7 +374,7 @@ export default function TripsPage() {
         </>
       ) : (
         <DataTable<Trip>
-          columns={TABLE_COLUMNS}
+          columns={makeTableColumns(router, setDeleteTarget)}
           data={trips}
           loading={loading}
           keyField="id"
@@ -357,6 +403,20 @@ export default function TripsPage() {
           emptyIcon={Plane}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        variant="danger"
+        title="Utazás törlése"
+        description={
+          deleteTarget
+            ? `Biztosan törlöd a(z) "${deleteTarget.name}" utazást?`
+            : ""
+        }
+        confirmLabel="Törlés"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

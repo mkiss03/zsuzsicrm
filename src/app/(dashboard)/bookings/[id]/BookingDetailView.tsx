@@ -113,6 +113,8 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
     const ok = await deleteBooking(booking.id);
     if (ok) {
       toast.success("Foglalás törölve");
+      setShowDelete(false);
+      router.refresh();
       router.push("/bookings");
     } else {
       toast.error("Hiba a törlés során");

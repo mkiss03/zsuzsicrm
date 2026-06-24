@@ -673,6 +673,8 @@ export function ClientProfileView({ client }: Props) {
     const ok = await deleteClient(client.id);
     if (ok) {
       toast.success("Ügyfél törölve");
+      setShowDeleteDialog(false);
+      router.refresh();
       router.push("/clients");
     } else {
       toast.error("Hiba a törlés során");
