@@ -239,7 +239,7 @@ export default function NewTripPage() {
             </Field>
 
             <Field
-              label="Alap ár (HUF)"
+              label="Alap ár (EUR)"
               required
               error={errors.base_price?.message}
             >
@@ -253,13 +253,13 @@ export default function NewTripPage() {
                   disabled={submitting}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-zinc-400 select-none">
-                  Ft
+                  €
                 </span>
               </div>
             </Field>
 
             <Field
-              label="VIP ár (HUF)"
+              label="VIP ár (EUR)"
               error={errors.vip_price?.message}
               hint="Opcionális"
             >
@@ -273,7 +273,7 @@ export default function NewTripPage() {
                   disabled={submitting}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-zinc-400 select-none">
-                  Ft
+                  €
                 </span>
               </div>
             </Field>
@@ -286,7 +286,7 @@ export default function NewTripPage() {
                 Teljes kapacitásnál várható bevétel:
               </span>
               <span className="text-sm font-semibold text-green-800">
-                {formatCurrency(expectedRevenue)}
+                {formatCurrency(expectedRevenue, "EUR")}
               </span>
             </div>
           )}

@@ -216,7 +216,7 @@ function CostsTab({ tripId }: { tripId: string }) {
           />
           <Input
             type="number"
-            placeholder="Összeg (Ft) *"
+            placeholder="Összeg (€) *"
             value={newCost.amount ?? ""}
             onChange={(e) => setNewCost((p) => ({ ...p, amount: Number(e.target.value) }))}
           />
@@ -282,7 +282,7 @@ function CostsTab({ tripId }: { tripId: string }) {
                       </Badge>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right font-medium">{formatCurrency(c.amount)}</td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCurrency(c.amount, "EUR")}</td>
                   <td className="px-4 py-3 text-right">
                     <Button
                       variant="ghost"
@@ -300,7 +300,7 @@ function CostsTab({ tripId }: { tripId: string }) {
                 <td colSpan={3} className="px-4 py-3 text-xs text-zinc-600">
                   Összes kiadás
                 </td>
-                <td className="px-4 py-3 text-right text-zinc-900">{formatCurrency(total)}</td>
+                <td className="px-4 py-3 text-right text-zinc-900">{formatCurrency(total, "EUR")}</td>
                 <td />
               </tr>
             </tbody>
@@ -329,7 +329,7 @@ function CostsTab({ tripId }: { tripId: string }) {
                     />
                   </div>
                   <span className="text-xs font-medium text-zinc-700 w-24 text-right">
-                    {formatCurrency(amount)}
+                    {formatCurrency(amount, "EUR")}
                   </span>
                 </div>
               ))}
@@ -924,23 +924,23 @@ export function TripDetailView({ trip: initialTrip }: Props) {
           <>
             <StatsCard
               title="Várható bevétel"
-              value={formatCurrency(financials?.expectedRevenue ?? 0)}
+              value={formatCurrency(financials?.expectedRevenue ?? 0, "EUR")}
               subtitle="teljes kapacitásnál"
               icon={TrendingUp}
             />
             <StatsCard
               title="Beérkezett előlegek"
-              value={formatCurrency(financials?.depositTotal ?? 0)}
+              value={formatCurrency(financials?.depositTotal ?? 0, "EUR")}
               icon={Wallet}
             />
             <StatsCard
               title="Beérkezett végösszegek"
-              value={formatCurrency(financials?.fullPaymentTotal ?? 0)}
+              value={formatCurrency(financials?.fullPaymentTotal ?? 0, "EUR")}
               icon={Receipt}
             />
             <StatsCard
               title="Nettó nyereség"
-              value={formatCurrency(financials?.profit ?? 0)}
+              value={formatCurrency(financials?.profit ?? 0, "EUR")}
               subtitle="bevétel – kiadások"
               icon={profitPositive ? TrendingUp : TrendingDown}
               trend={financials ? { value: profitPositive ? 100 : -100 } : undefined}

@@ -116,7 +116,7 @@ function makeTableColumns(
     sortable: true,
     className: "text-right",
     render: (v) => (
-      <span className="font-medium">{formatCurrency(v as number)}</span>
+      <span className="font-medium">{formatCurrency(v as number, "EUR")}</span>
     ),
   },
   {

@@ -120,7 +120,7 @@ export function TripCard({ trip }: TripCardProps) {
           <div className="mt-3 flex items-center gap-1.5 text-xs text-zinc-500">
             <TrendingUp className="h-3.5 w-3.5 text-green-600" />
             <span className="font-medium text-green-700">
-              {formatCurrency(trip.total_revenue)} bevétel
+              {formatCurrency(trip.total_revenue, "EUR")} bevétel
             </span>
           </div>
         )}

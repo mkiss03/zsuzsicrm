@@ -65,8 +65,8 @@ export function TripsTable({ trips, count }: Props) {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">{formatCurrency(t.base_price)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(t.total_revenue)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(t.base_price, "EUR")}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(t.total_revenue, "EUR")}</TableCell>
                 </TableRow>
               );
             })}
