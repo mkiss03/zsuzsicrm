@@ -248,6 +248,7 @@ export default function EmailSendPage() {
           templateId:    selectedTemplate?.id,
           clientIds,
           bookingId:     bookingId ?? undefined,
+          tripId:        selectedTrip?.id ?? undefined,
           customSubject: subject,
           customBody:    body,
         }),

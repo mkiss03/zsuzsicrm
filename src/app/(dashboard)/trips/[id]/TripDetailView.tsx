@@ -608,6 +608,7 @@ function DocumentsTab({ tripId }: { tripId: string }) {
     }
     await fetchFiles();
     setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
     toast.success("Feltöltés kész");
   }
 

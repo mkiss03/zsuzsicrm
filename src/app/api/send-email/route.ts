@@ -20,9 +20,9 @@ function formatHU(d: string | null | undefined): string {
   }
 }
 
-function formatFt(n: number | null | undefined): string {
+function formatEur(n: number | null | undefined): string {
   if (n == null) return "";
-  return new Intl.NumberFormat("hu-HU").format(n) + " Ft";
+  return new Intl.NumberFormat("hu-HU", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
 function buildVariables(
@@ -52,10 +52,10 @@ function buildVariables(
     indulas_datum:         formatHU(trip?.departure_date as string),
     visszaerkezes_datum:   formatHU(trip?.return_date    as string),
     foglalas_kod:          (booking?.booking_code as string) ?? "",
-    ar:                    formatFt(finalAmt),
-    elofizetes_osszege:    formatFt(depositAmt),
+    ar:                    formatEur(finalAmt),
+    elofizetes_osszege:    formatEur(depositAmt),
     fizetes_hatarido:      formatHU(booking?.payment_deadline as string),
-    hatralevo_osszeg:      formatFt(remaining),
+    hatralevo_osszeg:      formatEur(remaining),
     iban:                  settings["iban"]    ?? "",
     szabad_helyek:         String(avail),
     program:               (trip?.description  as string) ?? "",
@@ -108,6 +108,7 @@ export async function POST(request: Request) {
       templateId?: string;
       clientId?: string;
       bookingId?: string | null;
+      tripId?: string | null;
       customSubject?: string;
       customBody?: string;
       testMode?: boolean;
@@ -183,6 +184,24 @@ export async function POST(request: Request) {
             .single();
           booking = bk as Record<string, unknown>;
           trip    = (bk as { trip: Record<string, unknown> } | null)?.trip ?? null;
+        } else if (body.tripId) {
+          const { data: bk } = await supabase
+            .from("bookings")
+            .select("*, trip:trips(*)")
+            .eq("trip_id", body.tripId)
+            .eq("client_id", clientId)
+            .is("deleted_at", null)
+            .neq("status", "cancelled")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+          if (bk) {
+            booking = bk as Record<string, unknown>;
+            trip    = (bk as { trip: Record<string, unknown> } | null)?.trip ?? null;
+          } else {
+            const { data: t } = await supabase.from("trips").select("*").eq("id", body.tripId).single();
+            trip = t as Record<string, unknown> | null;
+          }
         }
 
         // Build variable map
