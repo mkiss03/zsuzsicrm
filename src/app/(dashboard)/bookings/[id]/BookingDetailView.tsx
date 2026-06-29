@@ -327,12 +327,12 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
         <h3 className="text-sm font-semibold text-zinc-700 mb-4">Pénzügyi részletek</h3>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Alap ár",       value: formatCurrency(booking.base_amount),   icon: Wallet },
+            { label: "Alap ár",       value: formatCurrency(booking.base_amount, "EUR"),   icon: Wallet },
             { label: "Kedvezmény",    value: booking.discount_amount > 0
-                ? `-${formatCurrency(booking.discount_amount)} (${booking.discount_percentage}%)`
+                ? `-${formatCurrency(booking.discount_amount, "EUR")} (${booking.discount_percentage}%)`
                 : "—",                                                               icon: TrendingDown },
-            { label: "Végösszeg",     value: formatCurrency(booking.final_amount),  icon: Wallet },
-            { label: "Előleg",        value: formatCurrency(booking.deposit_amount), icon: Wallet },
+            { label: "Végösszeg",     value: formatCurrency(booking.final_amount, "EUR"),  icon: Wallet },
+            { label: "Előleg",        value: formatCurrency(booking.deposit_amount, "EUR"), icon: Wallet },
           ].map(({ label, value, icon: Icon }) => (
             <div key={label} className="rounded-md border border-zinc-100 bg-zinc-50 p-3">
               <div className="flex items-center gap-1.5 mb-1">
@@ -349,7 +349,7 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
             remaining === 0 ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700",
           )}>
             <span>Fennmaradó egyenleg</span>
-            <span>{formatCurrency(remaining)}</span>
+            <span>{formatCurrency(remaining, "EUR")}</span>
           </div>
         )}
       </div>

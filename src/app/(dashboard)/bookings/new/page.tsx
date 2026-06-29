@@ -289,7 +289,7 @@ function Step2({
                     </p>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <p className="font-semibold text-zinc-900">{formatCurrency(basePrice(t))}</p>
+                    <p className="font-semibold text-zinc-900">{formatCurrency(basePrice(t), "EUR")}</p>
                     {selectedClient?.is_vip && t.vip_price && (
                       <Badge variant="warning" className="text-[10px] mt-1">VIP ár</Badge>
                     )}
@@ -333,6 +333,7 @@ export default function NewBookingPage() {
   const [manualEnabled, setManualEnabled]   = useState(false);
   const [manualType, setManualType]         = useState<"percent" | "amount">("percent");
   const [manualValue, setManualValue]       = useState(0);
+  const [depositManuallyEdited, setDepositManuallyEdited] = useState(false);
 
   const partySize = Math.max(participants.length, 1);
 
@@ -355,7 +356,7 @@ export default function NewBookingPage() {
   const depositAmount   = Math.round(finalAmount * 0.3);
   const defaultDeadline = format(addDays(new Date(), 14), "yyyy-MM-dd");
 
-  const { control, register, getValues } = useForm({
+  const { control, register, getValues, setValue } = useForm({
     defaultValues: {
       source: "" as ClientSource | "",
       notes: "",
@@ -363,6 +364,13 @@ export default function NewBookingPage() {
       deposit_amount: depositAmount,
     },
   });
+
+  // Keep deposit in sync with finalAmount when not manually edited
+  useEffect(() => {
+    if (!depositManuallyEdited) {
+      setValue("deposit_amount", depositAmount);
+    }
+  }, [depositAmount, depositManuallyEdited, setValue]);
 
   // Initialize lead participant when client is selected
   function handleClientSelect(c: Client | null) {
@@ -521,7 +529,7 @@ export default function NewBookingPage() {
                   </div>
                   {partySize > 1 && (
                     <p className="text-xs text-zinc-500">
-                      Az ár {partySize} főre számolva: {partySize} × {formatCurrency(perPersonPrice)} = {formatCurrency(baseAmount)}
+                      Az ár {partySize} főre számolva: {partySize} × {formatCurrency(perPersonPrice, "EUR")} = {formatCurrency(baseAmount, "EUR")}
                     </p>
                   )}
                 </div>
@@ -546,7 +554,7 @@ export default function NewBookingPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="percent">%</SelectItem>
-                          <SelectItem value="amount">Ft összeg</SelectItem>
+                          <SelectItem value="amount">€ összeg</SelectItem>
                         </SelectContent>
                       </Select>
                       <Input
@@ -563,13 +571,15 @@ export default function NewBookingPage() {
 
                 {/* Deposit */}
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-zinc-700">Előleg összege (Ft)</Label>
+                  <Label className="text-sm font-medium text-zinc-700">Előleg összege (€)</Label>
                   <Input
-                    {...register("deposit_amount")}
+                    {...register("deposit_amount", {
+                      onChange: () => setDepositManuallyEdited(true),
+                    })}
                     type="number"
                     min={0}
                   />
-                  <p className="text-xs text-zinc-400">Alapértelmezés: végösszeg 30%-a ({formatCurrency(depositAmount)})</p>
+                  <p className="text-xs text-zinc-400">Alapértelmezés: végösszeg 30%-a ({formatCurrency(depositAmount, "EUR")})</p>
                 </div>
 
                 {/* Payment deadline */}
@@ -617,27 +627,27 @@ export default function NewBookingPage() {
                     <span className="text-zinc-500">
                       Alap ár{partySize > 1 ? ` (${partySize} fő)` : ""}
                     </span>
-                    <span className="font-medium">{formatCurrency(baseAmount)}</span>
+                    <span className="font-medium">{formatCurrency(baseAmount, "EUR")}</span>
                   </div>
                   {autoDiscount > 0 && (
                     <div className="flex justify-between text-sm text-amber-700">
                       <span>Automatikus kedvezmény ({autoPct}%)</span>
-                      <span>-{formatCurrency(autoDiscount)}</span>
+                      <span>-{formatCurrency(autoDiscount, "EUR")}</span>
                     </div>
                   )}
                   {manualEnabled && manualDiscount > 0 && (
                     <div className="flex justify-between text-sm text-amber-700">
                       <span>Kézi kedvezmény</span>
-                      <span>-{formatCurrency(manualDiscount)}</span>
+                      <span>-{formatCurrency(manualDiscount, "EUR")}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-base font-semibold border-t border-zinc-200 pt-2">
                     <span>Végösszeg</span>
-                    <span className="text-zinc-900">{formatCurrency(finalAmount)}</span>
+                    <span className="text-zinc-900">{formatCurrency(finalAmount, "EUR")}</span>
                   </div>
                   <div className="flex justify-between text-sm text-zinc-500">
                     <span>Előleg (30%)</span>
-                    <span>{formatCurrency(depositAmount)}</span>
+                    <span>{formatCurrency(depositAmount, "EUR")}</span>
                   </div>
                   {partySize > 1 && (
                     <div className="flex justify-between text-sm text-zinc-500">

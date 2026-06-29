@@ -397,7 +397,7 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
                   </td>
 
                   <td className="px-4 py-3 text-right text-zinc-700">
-                    {formatCurrency(p.base_amount)}
+                    {formatCurrency(p.base_amount, "EUR")}
                   </td>
 
                   <td className="px-4 py-3 text-right">
@@ -405,7 +405,7 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
                       <span className="text-amber-600 text-xs font-medium">
                         -{p.discount_percentage}%
                         <span className="block text-zinc-400 font-normal">
-                          {formatCurrency(p.discount_amount)}
+                          {formatCurrency(p.discount_amount, "EUR")}
                         </span>
                       </span>
                     ) : (
@@ -414,7 +414,7 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
                   </td>
 
                   <td className="px-4 py-3 text-right font-medium text-zinc-900">
-                    {formatCurrency(p.final_amount)}
+                    {formatCurrency(p.final_amount, "EUR")}
                   </td>
 
                   <td className="px-4 py-3 text-center">
@@ -481,12 +481,12 @@ export function ParticipantsTable({ tripId }: ParticipantsTableProps) {
                 <td colSpan={4} className="px-4 py-3">
                   Összesítő ({participants.length} foglalás{totals.totalPersons !== participants.length ? ` · ${totals.totalPersons} fő` : ""})
                 </td>
-                <td className="px-4 py-3 text-right">{formatCurrency(totals.baseAmount)}</td>
+                <td className="px-4 py-3 text-right">{formatCurrency(totals.baseAmount, "EUR")}</td>
                 <td className="px-4 py-3 text-right text-amber-600">
-                  {totals.discountAmount > 0 ? `-${formatCurrency(totals.discountAmount)}` : "—"}
+                  {totals.discountAmount > 0 ? `-${formatCurrency(totals.discountAmount, "EUR")}` : "—"}
                 </td>
                 <td className="px-4 py-3 text-right text-zinc-900">
-                  {formatCurrency(totals.finalAmount)}
+                  {formatCurrency(totals.finalAmount, "EUR")}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {totals.depositPaid}/{participants.length}

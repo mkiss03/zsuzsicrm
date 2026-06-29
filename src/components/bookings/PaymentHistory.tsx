@@ -144,7 +144,7 @@ export function PaymentHistory({
                       isRefund ? "text-red-600" : "text-zinc-900",
                     )}
                   >
-                    {isRefund ? "-" : "+"}{formatCurrency(payment.amount)}
+                    {isRefund ? "-" : "+"}{formatCurrency(payment.amount, "EUR")}
                   </span>
                   {!isLocked && (
                     <Button
@@ -166,11 +166,11 @@ export function PaymentHistory({
       <div className="border-t border-zinc-200 px-5 py-4 space-y-1.5 bg-zinc-50">
         <div className="flex justify-between text-sm">
           <span className="text-zinc-500">Végösszeg</span>
-          <span className="font-medium">{formatCurrency(finalAmount)}</span>
+          <span className="font-medium">{formatCurrency(finalAmount, "EUR")}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-zinc-500">Befizetett összeg</span>
-          <span className="font-medium text-green-700">{formatCurrency(totalPaid)}</span>
+          <span className="font-medium text-green-700">{formatCurrency(totalPaid, "EUR")}</span>
         </div>
         <div className="flex justify-between text-sm border-t border-zinc-200 pt-1.5">
           <span className={cn("font-medium", overpaid ? "text-green-700" : "text-zinc-700")}>
@@ -178,8 +178,8 @@ export function PaymentHistory({
           </span>
           <span className={cn("font-semibold", overpaid ? "text-green-700" : remaining === 0 ? "text-green-700" : "text-red-600")}>
             {overpaid
-              ? formatCurrency(totalPaid - (finalAmount ?? 0))
-              : formatCurrency(remaining ?? 0)}
+              ? formatCurrency(totalPaid - (finalAmount ?? 0), "EUR")
+              : formatCurrency(remaining ?? 0, "EUR")}
           </span>
         </div>
       </div>

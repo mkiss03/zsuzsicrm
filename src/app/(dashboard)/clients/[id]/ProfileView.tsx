@@ -217,10 +217,10 @@ function BookingsTab({ clientId }: { clientId: string }) {
                   <BookingStatusBadge status={b.status} />
                 </td>
                 <td className="px-4 py-3 text-right font-medium">
-                  {formatCurrency(b.final_amount)}
+                  {formatCurrency(b.final_amount, "EUR")}
                 </td>
                 <td className="px-4 py-3 text-right text-zinc-600">
-                  {formatCurrency(b.deposit_amount)}
+                  {formatCurrency(b.deposit_amount, "EUR")}
                 </td>
               </tr>
             ))}
@@ -290,7 +290,7 @@ function InvoicesTab({ clientId }: { clientId: string }) {
                 <InvoiceStatusBadge status={inv.status} />
               </td>
               <td className="px-4 py-3 text-right font-medium">
-                {formatCurrency(inv.total)}
+                {formatCurrency(inv.total, "EUR")}
               </td>
             </tr>
           ))}
@@ -751,7 +751,7 @@ export function ClientProfileView({ client }: Props) {
         />
         <StatsCard
           title="Összes költés"
-          value={formatCurrency(client.total_spent)}
+          value={formatCurrency(client.total_spent, "EUR")}
           icon={Wallet}
         />
         <StatsCard

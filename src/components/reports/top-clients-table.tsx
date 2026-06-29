@@ -44,7 +44,7 @@ export function TopClientsTable({ clients }: Props) {
                 </TableCell>
                 <TableCell className="text-right">{c.trip_count}</TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(c.total_spent)}
+                  {formatCurrency(c.total_spent, "EUR")}
                 </TableCell>
               </TableRow>
             ))}
