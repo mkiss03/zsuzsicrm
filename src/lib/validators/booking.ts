@@ -5,6 +5,10 @@ export const participantSchema = z.object({
   name: z.string().min(1, "Név megadása kötelező"),
   is_lead: z.boolean().default(false),
   notes: z.string().optional().nullable(),
+  unit_price: z.coerce.number().min(0).optional().nullable(),
+  discount_percentage: z.coerce.number().min(0).max(100).default(0),
+  discount_amount: z.coerce.number().min(0).default(0),
+  final_price: z.coerce.number().min(0).optional().nullable(),
 });
 
 export type ParticipantFormValues = z.infer<typeof participantSchema>;

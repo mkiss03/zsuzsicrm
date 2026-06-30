@@ -9,7 +9,8 @@
       "Bash(ls -la)",
       "Bash(powershell -Command \"Get-ChildItem | Select-Object Name\")",
       "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path src\\\\app\\\\\\(dashboard\\)\\\\clients\\\\new, 'src\\\\app\\\\\\(dashboard\\)\\\\clients\\\\[id]', 'src\\\\app\\\\\\(dashboard\\)\\\\clients\\\\[id]\\\\edit', src\\\\hooks, src\\\\lib\\\\constants | Out-Null; Write-Host 'dirs created'\")",
-      "Bash(powershell -Command ' *)"
+      "Bash(powershell -Command ' *)",
+      "Bash(cp ../zsuzsicrm/.git/refs/heads/main /dev/null 2>/dev/null; git show main:supabase/migrations/20260629000001_fix_capacity_trigger.sql > supabase/migrations/20260629000001_fix_capacity_trigger.sql && ls supabase/migrations/ | tail -5)"
     ]
   }
 }

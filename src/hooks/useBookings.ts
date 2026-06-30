@@ -317,6 +317,10 @@ export function useBookings() {
             name: p.name,
             is_lead: p.is_lead ?? false,
             notes: p.notes ?? null,
+            unit_price: p.unit_price ?? null,
+            discount_percentage: p.discount_percentage ?? 0,
+            discount_amount: p.discount_amount ?? 0,
+            final_price: p.final_price ?? null,
           }));
           await supabase.from("booking_participants").insert(rows);
         }
