@@ -170,8 +170,9 @@ export default function NewInvoicePage() {
   const [extraLines, setExtraLines] = useState<ExtraLine[]>([
     { id: crypto.randomUUID(), description: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek", amount: 0, is_discount: false },
   ]);
-  // Mode: participant-based (when booking with participants is selected) or simple (4-field)
-  const [mode, setMode] = useState<"participant" | "simple">("simple");
+  // Mode: participant-based (default — supports multiple participants + individual discounts) or simple (4-field legacy)
+  const [mode, setMode] = useState<"participant" | "simple">("participant");
+  const [modeManuallySet, setModeManuallySet] = useState(false);
   // Simple mode prices
   const [simplePrices, setSimplePrices] = useState({ accommodation: 0, transfers: 0, discount: 0, advance: 0 });
 
@@ -198,9 +199,29 @@ export default function NewInvoicePage() {
       .then(({ data }) => setBookings((data ?? []) as typeof bookings));
   }, [selectedClient]);
 
-  // When booking changes: load participants
+  // When client/booking changes: seed participant lines (always available, never forced to simple mode)
   useEffect(() => {
-    if (!selectedBooking) { setMode("simple"); return; }
+    if (!selectedClient) {
+      setParticipantLines([]);
+      return;
+    }
+
+    if (!selectedBooking) {
+      // No booking — seed one row from the selected client so the user can build it up manually
+      setParticipantLines([{
+        id: crypto.randomUUID(),
+        participant_id: null,
+        name: `${selectedClient.last_name} ${selectedClient.first_name}`,
+        unit_price: 0,
+        discount_percentage: 0,
+        discount_amount: 0,
+        final_price: 0,
+        is_advance: false,
+        advance_amount: 0,
+      }]);
+      if (!modeManuallySet) setMode("participant");
+      return;
+    }
 
     supabase
       .from("booking_participants")
@@ -208,57 +229,60 @@ export default function NewInvoicePage() {
       .eq("booking_id", selectedBooking.id)
       .order("is_lead", { ascending: false })
       .then(({ data }) => {
-        const parts = (data ?? []) as BookingParticipant[];
-        if (parts.length === 0) {
-          // No named participants — fall back to simple mode
-          setMode("simple");
-          // Pre-fill simple prices from booking
-          const b = selectedBooking as Booking;
-          const baseDiscount = b.discount_amount ?? 0;
-          const advance = b.deposit_amount ?? 0;
-          const baseAccommodation = b.base_amount ?? b.final_amount ?? 0;
-          setSimplePrices({
-            accommodation: baseAccommodation,
-            transfers: 0,
-            discount: baseDiscount,
-            advance,
-          });
-        } else {
-          setMode("participant");
-          const b = selectedBooking as Booking;
-          // Distribute advance proportionally (or use deposit_amount)
-          const depositTotal = b.deposit_amount ?? 0;
-          const perParticipantAdvance = parts.length > 0 ? Math.round(depositTotal / parts.length * 100) / 100 : 0;
+        const dbParts = (data ?? []) as BookingParticipant[];
+        const b = selectedBooking as Booking;
+        const depositTotal = b.deposit_amount ?? 0;
 
-          setParticipantLines(
-            parts.map((p, i) => {
-              const unitPrice = p.unit_price ?? (b.base_amount ? b.base_amount / parts.length : 0);
-              const discPct = p.discount_percentage ?? 0;
-              const discAmt = p.discount_amount ?? Math.round(unitPrice * discPct / 100 * 100) / 100;
-              const finalPrice = p.final_price ?? Math.max(unitPrice - discAmt, 0);
-              // Last participant gets any rounding remainder for advance
-              const advAmt = i === parts.length - 1
-                ? Math.round((depositTotal - perParticipantAdvance * (parts.length - 1)) * 100) / 100
-                : perParticipantAdvance;
-              return {
-                id: crypto.randomUUID(),
-                participant_id: p.id,
-                name: p.name,
-                unit_price: unitPrice,
-                discount_percentage: discPct,
-                discount_amount: discAmt,
-                final_price: finalPrice,
-                is_advance: false,
-                advance_amount: advAmt,
-              };
-            }),
-          );
-          setExtraLines([
-            { id: crypto.randomUUID(), description: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek", amount: 0, is_discount: false },
-          ]);
-        }
+        // Fall back to a single row built from the booking/client when no named participants exist
+        const parts: Pick<BookingParticipant, "id" | "name" | "unit_price" | "discount_percentage" | "discount_amount" | "final_price">[] =
+          dbParts.length > 0
+            ? dbParts
+            : [{
+                id: "",
+                name: `${selectedClient.last_name} ${selectedClient.first_name}`,
+                unit_price: b.base_amount ?? b.final_amount ?? 0,
+                discount_percentage: b.discount_percentage ?? 0,
+                discount_amount: b.discount_amount ?? 0,
+                final_price: b.final_amount ?? null,
+              }];
+
+        const perParticipantAdvance = parts.length > 0 ? Math.round(depositTotal / parts.length * 100) / 100 : 0;
+
+        setParticipantLines(
+          parts.map((p, i) => {
+            const unitPrice = p.unit_price ?? 0;
+            const discPct = p.discount_percentage ?? 0;
+            const discAmt = p.discount_amount ?? Math.round(unitPrice * discPct / 100 * 100) / 100;
+            const finalPrice = p.final_price ?? Math.max(unitPrice - discAmt, 0);
+            const advAmt = i === parts.length - 1
+              ? Math.round((depositTotal - perParticipantAdvance * (parts.length - 1)) * 100) / 100
+              : perParticipantAdvance;
+            return {
+              id: crypto.randomUUID(),
+              participant_id: p.id || null,
+              name: p.name,
+              unit_price: unitPrice,
+              discount_percentage: discPct,
+              discount_amount: discAmt,
+              final_price: finalPrice,
+              is_advance: false,
+              advance_amount: advAmt,
+            };
+          }),
+        );
+        setExtraLines([
+          { id: crypto.randomUUID(), description: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek", amount: 0, is_discount: false },
+        ]);
+        // Pre-fill simple-mode fallback too, in case the user toggles to it
+        setSimplePrices({
+          accommodation: b.base_amount ?? b.final_amount ?? 0,
+          transfers: 0,
+          discount: b.discount_amount ?? 0,
+          advance: depositTotal,
+        });
+        if (!modeManuallySet) setMode("participant");
       });
-  }, [selectedBooking]);
+  }, [selectedBooking, selectedClient]);
 
   // ── Participant line helpers ───────────────────────────────────────────────
 
@@ -546,6 +570,30 @@ export default function NewInvoicePage() {
               <span className="text-sm text-zinc-500">Ft</span>
               <span className="text-xs text-zinc-400 ml-2">(Automatikusan letöltve, de felülírhatod)</span>
             </div>
+          </div>
+
+          {/* Mode toggle */}
+          <div className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white p-1.5">
+            <button
+              type="button"
+              onClick={() => { setMode("participant"); setModeManuallySet(true); }}
+              className={cn(
+                "flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+                mode === "participant" ? "bg-blue-600 text-white" : "text-zinc-500 hover:bg-zinc-50",
+              )}
+            >
+              Résztvevőnkénti bontás
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode("simple"); setModeManuallySet(true); }}
+              className={cn(
+                "flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+                mode === "simple" ? "bg-blue-600 text-white" : "text-zinc-500 hover:bg-zinc-50",
+              )}
+            >
+              Egyszerű tételek
+            </button>
           </div>
 
           {/* Line items */}
