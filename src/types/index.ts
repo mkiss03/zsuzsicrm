@@ -149,6 +149,10 @@ export interface BookingParticipant {
   name: string;
   is_lead: boolean;
   notes: string | null;
+  unit_price: number | null;
+  discount_percentage: number;
+  discount_amount: number;
+  final_price: number | null;
   created_at: string;
 }
 

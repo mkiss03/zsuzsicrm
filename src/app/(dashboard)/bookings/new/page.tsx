@@ -314,6 +314,10 @@ interface ParticipantRow {
   name: string;
   is_lead: boolean;
   notes: string;
+  unit_price: number;
+  discount_percentage: number;
+  discount_amount: number;
+  final_price: number;
 }
 
 export default function NewBookingPage() {
@@ -333,6 +337,7 @@ export default function NewBookingPage() {
   const [manualEnabled, setManualEnabled]   = useState(false);
   const [manualType, setManualType]         = useState<"percent" | "amount">("percent");
   const [manualValue, setManualValue]       = useState(0);
+  const [depositManuallyEdited, setDepositManuallyEdited] = useState(false);
 
   const partySize = Math.max(participants.length, 1);
 
@@ -355,7 +360,7 @@ export default function NewBookingPage() {
   const depositAmount   = Math.round(finalAmount * 0.3);
   const defaultDeadline = format(addDays(new Date(), 14), "yyyy-MM-dd");
 
-  const { control, register, getValues } = useForm({
+  const { control, register, getValues, setValue } = useForm({
     defaultValues: {
       source: "" as ClientSource | "",
       notes: "",
@@ -364,16 +369,41 @@ export default function NewBookingPage() {
     },
   });
 
+  // Keep deposit in sync with finalAmount when not manually edited
+  useEffect(() => {
+    if (!depositManuallyEdited) {
+      setValue("deposit_amount", depositAmount);
+    }
+  }, [depositAmount, depositManuallyEdited, setValue]);
+
+  // Sync unit_price on participants when trip changes
+  useEffect(() => {
+    if (!selectedTrip) return;
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const price = (p.is_lead && selectedClient?.is_vip && selectedTrip.vip_price)
+          ? selectedTrip.vip_price
+          : selectedTrip.base_price;
+        const disc = Math.round(price * p.discount_percentage / 100 * 100) / 100;
+        return { ...p, unit_price: price, discount_amount: disc, final_price: Math.max(price - disc, 0) };
+      }),
+    );
+  }, [selectedTrip]);
   // Initialize lead participant when client is selected
   function handleClientSelect(c: Client | null) {
     setSelectedClient(c);
     if (c) {
+      const price = (c.is_vip && selectedTrip?.vip_price) ? selectedTrip.vip_price : (selectedTrip?.base_price ?? 0);
       setParticipants([{
         key: crypto.randomUUID(),
         client_id: c.id,
         name: `${c.last_name} ${c.first_name}`,
         is_lead: true,
         notes: "",
+        unit_price: price,
+        discount_percentage: 0,
+        discount_amount: 0,
+        final_price: price,
       }]);
     } else {
       setParticipants([]);
@@ -381,9 +411,10 @@ export default function NewBookingPage() {
   }
 
   function addParticipantRow() {
+    const price = selectedTrip?.base_price ?? 0;
     setParticipants((prev) => [
       ...prev,
-      { key: crypto.randomUUID(), client_id: null, name: "", is_lead: false, notes: "" },
+      { key: crypto.randomUUID(), client_id: null, name: "", is_lead: false, notes: "", unit_price: price, discount_percentage: 0, discount_amount: 0, final_price: price },
     ]);
   }
 
@@ -394,6 +425,26 @@ export default function NewBookingPage() {
   function updateParticipantRow(key: string, field: keyof ParticipantRow, value: string | boolean | null) {
     setParticipants((prev) =>
       prev.map((p) => (p.key === key ? { ...p, [field]: value } : p)),
+    );
+  }
+
+  function updateParticipantDiscount(key: string, discountPct: number) {
+    setParticipants((prev) =>
+      prev.map((p) => {
+        if (p.key !== key) return p;
+        const disc = Math.round(p.unit_price * discountPct / 100 * 100) / 100;
+        return { ...p, discount_percentage: discountPct, discount_amount: disc, final_price: Math.max(p.unit_price - disc, 0) };
+      }),
+    );
+  }
+
+  function updateParticipantUnitPrice(key: string, price: number) {
+    setParticipants((prev) =>
+      prev.map((p) => {
+        if (p.key !== key) return p;
+        const disc = Math.round(price * p.discount_percentage / 100 * 100) / 100;
+        return { ...p, unit_price: price, discount_amount: disc, final_price: Math.max(price - disc, 0) };
+      }),
     );
   }
 
@@ -428,6 +479,10 @@ export default function NewBookingPage() {
         name: p.name,
         is_lead: p.is_lead,
         notes: p.notes || null,
+        unit_price: p.unit_price || null,
+        discount_percentage: p.discount_percentage,
+        discount_amount: p.discount_amount,
+        final_price: p.final_price || null,
       })),
     };
 
@@ -495,33 +550,64 @@ export default function NewBookingPage() {
                   </div>
                   <div className="space-y-2">
                     {participants.map((p) => (
-                      <div key={p.key} className="flex items-center gap-2">
-                        <Input
-                          value={p.name}
-                          onChange={(e) => updateParticipantRow(p.key, "name", e.target.value)}
-                          placeholder="Név"
-                          className="flex-1 h-9"
-                          disabled={p.is_lead}
-                        />
-                        {p.is_lead ? (
-                          <Badge variant="muted" className="text-[10px] px-2 shrink-0">
-                            Főfoglaló
-                          </Badge>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => removeParticipantRow(p.key)}
-                            className="text-zinc-400 hover:text-red-500 p-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                      <div key={p.key} className="rounded-md border border-zinc-100 bg-zinc-50 p-2.5 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={p.name}
+                            onChange={(e) => updateParticipantRow(p.key, "name", e.target.value)}
+                            placeholder="Név"
+                            className="flex-1 h-9"
+                            disabled={p.is_lead}
+                          />
+                          {p.is_lead ? (
+                            <Badge variant="muted" className="text-[10px] px-2 shrink-0">Főfoglaló</Badge>
+                          ) : (
+                            <button type="button" onClick={() => removeParticipantRow(p.key)} className="text-zinc-400 hover:text-red-500 p-1">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Ár (€)</p>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min={0}
+                                value={p.unit_price}
+                                onChange={(e) => updateParticipantUnitPrice(p.key, Number(e.target.value))}
+                                className="h-8 text-sm pr-7"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">€</span>
+                            </div>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Kedvezmény (%)</p>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={p.discount_percentage}
+                                onChange={(e) => updateParticipantDiscount(p.key, Number(e.target.value))}
+                                className="h-8 text-sm pr-7"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">%</span>
+                            </div>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Fizet</p>
+                            <p className="h-8 flex items-center text-sm font-semibold text-zinc-800">
+                              {formatCurrency(p.final_price, "EUR")}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
                   {partySize > 1 && (
-                    <p className="text-xs text-zinc-500">
-                      Az ár {partySize} főre számolva: {partySize} × {formatCurrency(perPersonPrice)} = {formatCurrency(baseAmount)}
+                    <p className="text-xs text-zinc-500 font-medium">
+                      Összesen: {formatCurrency(participants.reduce((s, p) => s + p.final_price, 0), "EUR")}
                     </p>
                   )}
                 </div>
@@ -563,13 +649,13 @@ export default function NewBookingPage() {
 
                 {/* Deposit */}
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-zinc-700">Előleg összege (Ft)</Label>
+                  <Label className="text-sm font-medium text-zinc-700">Előleg összege (€)</Label>
                   <Input
-                    {...register("deposit_amount")}
+                    {...register("deposit_amount", { onChange: () => setDepositManuallyEdited(true) })}
                     type="number"
                     min={0}
                   />
-                  <p className="text-xs text-zinc-400">Alapértelmezés: végösszeg 30%-a ({formatCurrency(depositAmount)})</p>
+                  <p className="text-xs text-zinc-400">Alapértelmezés: végösszeg 30%-a ({formatCurrency(depositAmount, "EUR")})</p>
                 </div>
 
                 {/* Payment deadline */}
