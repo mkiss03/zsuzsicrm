@@ -63,7 +63,7 @@ export function BookingsTable({ bookings, count }: Props) {
                 </TableCell>
                 <TableCell className="text-sm">{formatDate(b.trip.departure_date)}</TableCell>
                 <TableCell><BookingStatusBadge status={b.status} /></TableCell>
-                <TableCell className="text-right">{formatCurrency(b.final_amount)}</TableCell>
+                <TableCell className="text-right">{formatCurrency(b.final_amount, "EUR")}</TableCell>
                 <TableCell className="text-sm">
                   {b.payment_deadline ? formatDate(b.payment_deadline) : "—"}
                 </TableCell>

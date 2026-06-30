@@ -140,11 +140,11 @@ export function PaymentForm({
                 className={`pr-10 ${errors.amount ? "border-red-300" : ""}`}
                 disabled={loading}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-zinc-400">Ft</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-zinc-400">€</span>
             </div>
             {remainingBalance > 0 && (
               <p className="text-xs text-zinc-400">
-                Fennmaradó egyenleg: <span className="font-medium">{formatCurrency(remainingBalance)}</span>
+                Fennmaradó egyenleg: <span className="font-medium">{formatCurrency(remainingBalance, "EUR")}</span>
               </p>
             )}
             {errors.amount && <p className="text-xs text-red-500">{errors.amount.message}</p>}

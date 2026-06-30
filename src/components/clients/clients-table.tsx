@@ -68,7 +68,7 @@ export function ClientsTable({ clients, count }: Props) {
                   ) : "—"}
                 </TableCell>
                 <TableCell className="text-right">{c.trip_count}</TableCell>
-                <TableCell className="text-right">{formatCurrency(c.total_spent)}</TableCell>
+                <TableCell className="text-right">{formatCurrency(c.total_spent, "EUR")}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {formatDate(c.created_at)}
                 </TableCell>

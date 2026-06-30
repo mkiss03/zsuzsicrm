@@ -44,7 +44,7 @@ export function RecentBookings({ bookings }: Props) {
                 </div>
               </div>
               <div className="ml-4 text-right">
-                <div className="text-sm font-medium">{formatCurrency(b.final_amount)}</div>
+                <div className="text-sm font-medium">{formatCurrency(b.final_amount, "EUR")}</div>
                 <div className="text-xs text-muted-foreground">{b.booking_code}</div>
               </div>
             </div>

@@ -750,10 +750,10 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { label: "Alap ár",    value: formatCurrency(details.base_amount) },
-              { label: "Kedvezmény", value: details.discount_amount > 0 ? `-${formatCurrency(details.discount_amount)} (${details.discount_percentage}%)` : "—" },
-              { label: "Végösszeg",  value: formatCurrency(bookingRow.final_amount) },
-              { label: "Előleg",     value: formatCurrency(details.deposit_amount) },
+              { label: "Alap ár",    value: formatCurrency(details.base_amount, "EUR") },
+              { label: "Kedvezmény", value: details.discount_amount > 0 ? `-${formatCurrency(details.discount_amount, "EUR")} (${details.discount_percentage}%)` : "—" },
+              { label: "Végösszeg",  value: formatCurrency(bookingRow.final_amount, "EUR") },
+              { label: "Előleg",     value: formatCurrency(details.deposit_amount, "EUR") },
             ].map(({ label, value }) => (
               <div key={label} className="rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2">
                 <p className="text-[10px] text-zinc-400 mb-0.5">{label}</p>
@@ -770,7 +770,7 @@ function WorkflowDetail({ bookingRow }: { bookingRow: BookingPipelineRow }) {
                 remaining === 0 ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700",
               )}>
                 <span>Fennmaradó egyenleg</span>
-                <span className="font-bold">{formatCurrency(remaining)}</span>
+                <span className="font-bold">{formatCurrency(remaining, "EUR")}</span>
               </div>
             ) : null;
           })()}

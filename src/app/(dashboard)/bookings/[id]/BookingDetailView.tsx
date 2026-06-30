@@ -134,28 +134,66 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
     }
 
     const tripName = trip?.name ?? "Utazás";
-    const participantNames = booking.participants && booking.participants.length > 1
-      ? booking.participants.map((p) => p.name).join(", ")
-      : null;
-    const description = participantNames
-      ? `${tripName} (${participantNames})`
-      : tripName;
+    const partySize = booking.party_size ?? 1;
+    const baseAmount = booking.base_amount ?? 0;
+    const perPersonPrice = partySize > 0 ? baseAmount / partySize : baseAmount;
+    const discountAmount = booking.discount_amount ?? 0;
+    const finalAmount = booking.final_amount ?? 0;
+    const depositAmount = booking.deposit_amount ?? 0;
+
+    const items: { description: string; quantity: number; unit_price: number; total: number; is_advance?: boolean }[] = [];
+
+    if (booking.participants && booking.participants.length > 1) {
+      for (const p of booking.participants) {
+        items.push({
+          description: `${tripName} — ${p.name}${p.is_lead ? " (főfoglaló)" : ""}`,
+          quantity: 1,
+          unit_price: perPersonPrice,
+          total: perPersonPrice,
+        });
+      }
+    } else {
+      items.push({
+        description: tripName,
+        quantity: partySize,
+        unit_price: perPersonPrice,
+        total: baseAmount,
+      });
+    }
+
+    if (discountAmount > 0) {
+      items.push({
+        description: `Kedvezmény (${booking.discount_percentage}%)`,
+        quantity: 1,
+        unit_price: -discountAmount,
+        total: -discountAmount,
+      });
+    }
+
+    if (depositAmount > 0 && totalPaid > 0) {
+      items.push({
+        description: "Előleg (már befizetett)",
+        quantity: 1,
+        unit_price: -Math.min(depositAmount, totalPaid),
+        total: -Math.min(depositAmount, totalPaid),
+        is_advance: true,
+      });
+    }
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
 
     const { error } = await supabase.from("invoices").insert({
       client_id: booking.client_id,
       booking_id: booking.id,
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),
-      items: [{
-        description,
-        quantity: booking.party_size ?? 1,
-        unit_price: (booking.final_amount ?? 0) / (booking.party_size ?? 1),
-        total: booking.final_amount ?? 0,
-      }],
-      subtotal: booking.final_amount ?? 0,
+      due_date: dueDate.toISOString().slice(0, 10),
+      items,
+      subtotal: finalAmount,
       tax_rate: 13,
-      tax_amount: (booking.final_amount ?? 0) * 0.13,
-      total: (booking.final_amount ?? 0) * 1.13,
+      tax_amount: Math.round(finalAmount * 0.13 * 100) / 100,
+      total: Math.round(finalAmount * 1.13 * 100) / 100,
     });
 
     if (error) {
@@ -327,12 +365,12 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
         <h3 className="text-sm font-semibold text-zinc-700 mb-4">Pénzügyi részletek</h3>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Alap ár",       value: formatCurrency(booking.base_amount),   icon: Wallet },
+            { label: "Alap ár",       value: formatCurrency(booking.base_amount, "EUR"),   icon: Wallet },
             { label: "Kedvezmény",    value: booking.discount_amount > 0
-                ? `-${formatCurrency(booking.discount_amount)} (${booking.discount_percentage}%)`
+                ? `-${formatCurrency(booking.discount_amount, "EUR")} (${booking.discount_percentage}%)`
                 : "—",                                                               icon: TrendingDown },
-            { label: "Végösszeg",     value: formatCurrency(booking.final_amount),  icon: Wallet },
-            { label: "Előleg",        value: formatCurrency(booking.deposit_amount), icon: Wallet },
+            { label: "Végösszeg",     value: formatCurrency(booking.final_amount, "EUR"),  icon: Wallet },
+            { label: "Előleg",        value: formatCurrency(booking.deposit_amount, "EUR"), icon: Wallet },
           ].map(({ label, value, icon: Icon }) => (
             <div key={label} className="rounded-md border border-zinc-100 bg-zinc-50 p-3">
               <div className="flex items-center gap-1.5 mb-1">
@@ -349,7 +387,7 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
             remaining === 0 ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700",
           )}>
             <span>Fennmaradó egyenleg</span>
-            <span>{formatCurrency(remaining)}</span>
+            <span>{formatCurrency(remaining, "EUR")}</span>
           </div>
         )}
       </div>

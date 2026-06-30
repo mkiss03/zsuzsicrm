@@ -129,7 +129,7 @@ function StatsRow({ stats }: { stats: BookingStats | null }) {
         icon={AlertCircle}
         className={stats.overdueCount > 0 ? "border-red-200 bg-red-50/30" : ""}
       />
-      <StatsCard title="Havi bevétel" value={formatCurrency(stats.currentMonthRevenue)} icon={TrendingUp} />
+      <StatsCard title="Havi bevétel" value={formatCurrency(stats.currentMonthRevenue, "EUR")} icon={TrendingUp} />
     </div>
   );
 }
@@ -247,7 +247,7 @@ export default function BookingsPage() {
     },
     {
       key: "final_amount", header: "Végösszeg", className: "text-right",
-      render: (v) => <span className="font-medium">{formatCurrency(v as number | null)}</span>,
+      render: (v) => <span className="font-medium">{formatCurrency(v as number | null, "EUR")}</span>,
     },
     {
       key: "deposit_paid_at", header: "Előleg",
