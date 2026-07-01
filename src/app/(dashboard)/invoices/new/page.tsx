@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
-import { ArrowLeft, Loader2, Plus, Search, Trash2, X, RefreshCw } from "lucide-react";
+import { ArrowLeft, Loader2, Search, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { useInvoices } from "@/hooks/useInvoices";
@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Client, Booking, Trip, BookingParticipant } from "@/types";
+import type { Client, Booking, Trip } from "@/types";
 import type { InvoiceFormValues } from "@/lib/validators/invoice";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -115,38 +115,33 @@ function ClientCombobox({ selected, onSelect }: {
   );
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── State types ──────────────────────────────────────────────────────────────
 
-/** One custom extra line within a participant block (food, drinks, extra service…) */
-interface ParticipantExtraItem {
-  id: string;
-  description: string;
-  amount: number;
-}
-
-/** One participant with their own service price, discount and optional extra items */
-interface ParticipantBlock {
-  id: string;
-  participant_id: string | null;
-  name: string;
-  /** Main service description (editable, default = trip name / "Szállás + Fotózás") */
-  service_description: string;
-  unit_price: number;
+interface SimpleState {
+  accommodation_label: string;
+  accommodation_price: number;
+  accommodation_qty: number;
+  transfers_label: string;
+  transfers_amount: number;
   discount_percentage: number;
-  discount_amount: number;
-  /** unit_price - discount_amount */
-  final_price: number;
-  advance_amount: number;
-  extra_items: ParticipantExtraItem[];
+  surcharge_enabled: boolean;
+  surcharge_label: string;
+  surcharge_price: number;
+  advance: number;
 }
 
-/** Global shared items — transfers, common extras not tied to one person */
-interface SharedLine {
-  id: string;
-  description: string;
-  amount: number;
-  is_discount: boolean;
-}
+const DEFAULT_SIMPLE: SimpleState = {
+  accommodation_label: "Unterkunft + Fotografie / Szállás + Fotózás",
+  accommodation_price: 0,
+  accommodation_qty: 1,
+  transfers_label: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek",
+  transfers_amount: 0,
+  discount_percentage: 0,
+  surcharge_enabled: false,
+  surcharge_label: "Személyenkénti felár / Zuschlag pro Person",
+  surcharge_price: 0,
+  advance: 0,
+};
 
 const TODAY    = format(new Date(), "yyyy-MM-dd");
 const DUE_DATE = format(addDays(new Date(), 14), "yyyy-MM-dd");
@@ -157,25 +152,26 @@ const TAX_OPTIONS = [
   { value: 0,  label: "0% – Steuerfrei (adómentes)" },
 ] as const;
 
-const DEFAULT_SERVICE_LABEL = "Unterkunft + Fotografie / Szállás + Fotózás";
+// ─── EurInput helper ──────────────────────────────────────────────────────────
 
-function mkBlock(name: string, unitPrice = 0, discPct = 0, depositAmt = 0, participantId: string | null = null): ParticipantBlock {
-  const discAmt = Math.round(unitPrice * discPct / 100 * 100) / 100;
-  return {
-    id: crypto.randomUUID(),
-    participant_id: participantId,
-    name,
-    service_description: DEFAULT_SERVICE_LABEL,
-    unit_price: unitPrice,
-    discount_percentage: discPct,
-    discount_amount: discAmt,
-    final_price: Math.max(unitPrice - discAmt, 0),
-    advance_amount: depositAmt,
-    extra_items: [],
-  };
+function EurInput({ value, onChange, disabled, className }: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className="relative">
+      <Input type="number" min={0} step={0.01} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+        className={cn("h-9 text-sm text-right pr-8", className)} />
+      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">€</span>
+    </div>
+  );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NewInvoicePage() {
   const router = useRouter();
@@ -196,18 +192,25 @@ export default function NewInvoicePage() {
   const [previewLoading, setPreviewLoading]   = useState(false);
   const [submitting, setSubmitting]           = useState(false);
 
-  // Participant blocks — the heart of the new UI
-  const [blocks, setBlocks]         = useState<ParticipantBlock[]>([]);
-  // Shared lines (transfers, etc.) at the bottom
-  const [sharedLines, setSharedLines] = useState<SharedLine[]>([
-    { id: crypto.randomUUID(), description: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek", amount: 0, is_discount: false },
-  ]);
-  // Simple 4-field mode (legacy / no-participant fallback)
-  const [mode, setMode]             = useState<"participant" | "simple">("participant");
-  const [modeManuallySet, setModeManuallySet] = useState(false);
-  const [simplePrices, setSimplePrices] = useState({ accommodation: 0, transfers: 0, discount: 0, advance: 0 });
+  const [simple, setSimple] = useState<SimpleState>(DEFAULT_SIMPLE);
 
-  // ── Init ────────────────────────────────────────────────────────────────────
+  function patchSimple(patch: Partial<SimpleState>) {
+    setSimple((prev) => ({ ...prev, ...patch }));
+  }
+
+  // ─── Computed ──────────────────────────────────────────────────────────────
+
+  const accommodationTotal = Math.round(simple.accommodation_price * simple.accommodation_qty * 100) / 100;
+  const discountAmount     = Math.round(accommodationTotal * simple.discount_percentage / 100 * 100) / 100;
+  const surchargeTotal     = simple.surcharge_enabled
+    ? Math.round(simple.surcharge_price * simple.accommodation_qty * 100) / 100
+    : 0;
+  const subtotal  = accommodationTotal + simple.transfers_amount - discountAmount + surchargeTotal;
+  const taxAmount = Math.round(subtotal * taxRate / 100 * 100) / 100;
+  const total     = subtotal + taxAmount;
+  const remaining = Math.max(total - simple.advance, 0);
+
+  // ─── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     void getAgencySettings().then((s) => {
@@ -232,191 +235,72 @@ export default function NewInvoicePage() {
       .then(({ data }) => setBookings((data ?? []) as typeof bookings));
   }, [selectedClient]);
 
-  // When client / booking changes: populate participant blocks
+  // Populate from booking when selected
   useEffect(() => {
-    if (!selectedClient) { setBlocks([]); return; }
+    if (!selectedBooking) return;
+    const b = selectedBooking as Booking;
+    const qty = b.party_size ?? 1;
+    const baseTotal = b.base_amount ?? b.final_amount ?? 0;
+    const perPerson = qty > 0 ? Math.round(baseTotal / qty * 100) / 100 : baseTotal;
+    patchSimple({
+      accommodation_price: perPerson,
+      accommodation_qty: qty,
+      discount_percentage: b.discount_percentage ?? 0,
+      advance: b.deposit_amount ?? 0,
+    });
+  }, [selectedBooking]);
 
-    if (!selectedBooking) {
-      setBlocks([mkBlock(`${selectedClient.last_name} ${selectedClient.first_name}`)]);
-      if (!modeManuallySet) setMode("participant");
-      return;
-    }
-
-    supabase
-      .from("booking_participants")
-      .select("*")
-      .eq("booking_id", selectedBooking.id)
-      .order("is_lead", { ascending: false })
-      .then(({ data }) => {
-        const dbParts = (data ?? []) as BookingParticipant[];
-        const b = selectedBooking as Booking;
-        const depositTotal = b.deposit_amount ?? 0;
-
-        if (dbParts.length > 0) {
-          const perAdv = Math.round(depositTotal / dbParts.length * 100) / 100;
-          setBlocks(dbParts.map((p, i) => {
-            const unitPrice = p.unit_price ?? (b.base_amount ? b.base_amount / dbParts.length : 0);
-            const discPct   = p.discount_percentage ?? 0;
-            const discAmt   = p.discount_amount ?? Math.round(unitPrice * discPct / 100 * 100) / 100;
-            const advance   = i === dbParts.length - 1
-              ? Math.round((depositTotal - perAdv * (dbParts.length - 1)) * 100) / 100
-              : perAdv;
-            return {
-              id: crypto.randomUUID(),
-              participant_id: p.id,
-              name: p.name,
-              service_description: DEFAULT_SERVICE_LABEL,
-              unit_price: unitPrice,
-              discount_percentage: discPct,
-              discount_amount: discAmt,
-              final_price: p.final_price ?? Math.max(unitPrice - discAmt, 0),
-              advance_amount: advance,
-              extra_items: [],
-            };
-          }));
-        } else {
-          // No named participants — single row from booking
-          setBlocks([mkBlock(
-            `${selectedClient.last_name} ${selectedClient.first_name}`,
-            b.base_amount ?? b.final_amount ?? 0,
-            b.discount_percentage ?? 0,
-            depositTotal,
-          )]);
-        }
-        setSimplePrices({
-          accommodation: b.base_amount ?? b.final_amount ?? 0,
-          transfers: 0,
-          discount: b.discount_amount ?? 0,
-          advance: depositTotal,
-        });
-        if (!modeManuallySet) setMode("participant");
-      });
-  }, [selectedBooking, selectedClient]);
-
-  // ── Block helpers ─────────────────────────────────────────────────────────
-
-  function updateBlock(id: string, patch: Partial<ParticipantBlock>) {
-    setBlocks((prev) => prev.map((b) => b.id !== id ? b : { ...b, ...patch }));
-  }
-
-  function updateBlockDiscount(id: string, pct: number) {
-    setBlocks((prev) => prev.map((b) => {
-      if (b.id !== id) return b;
-      const disc = Math.round(b.unit_price * pct / 100 * 100) / 100;
-      return { ...b, discount_percentage: pct, discount_amount: disc, final_price: Math.max(b.unit_price - disc, 0) };
-    }));
-  }
-
-  function updateBlockPrice(id: string, price: number) {
-    setBlocks((prev) => prev.map((b) => {
-      if (b.id !== id) return b;
-      const disc = Math.round(price * b.discount_percentage / 100 * 100) / 100;
-      return { ...b, unit_price: price, discount_amount: disc, final_price: Math.max(price - disc, 0) };
-    }));
-  }
-
-  function addExtraItem(blockId: string) {
-    setBlocks((prev) => prev.map((b) =>
-      b.id !== blockId ? b : {
-        ...b, extra_items: [...b.extra_items, { id: crypto.randomUUID(), description: "", amount: 0 }],
-      }
-    ));
-  }
-
-  function updateExtraItem(blockId: string, itemId: string, field: "description" | "amount", value: string | number) {
-    setBlocks((prev) => prev.map((b) =>
-      b.id !== blockId ? b : {
-        ...b, extra_items: b.extra_items.map((e) => e.id !== itemId ? e : { ...e, [field]: value }),
-      }
-    ));
-  }
-
-  function removeExtraItem(blockId: string, itemId: string) {
-    setBlocks((prev) => prev.map((b) =>
-      b.id !== blockId ? b : { ...b, extra_items: b.extra_items.filter((e) => e.id !== itemId) }
-    ));
-  }
-
-  function addBlock() {
-    setBlocks((prev) => [...prev, mkBlock("")]);
-  }
-
-  function removeBlock(id: string) {
-    setBlocks((prev) => prev.filter((b) => b.id !== id));
-  }
-
-  // ── Totals ────────────────────────────────────────────────────────────────
-
-  const participantTotal = blocks.reduce((s, b) =>
-    s + b.final_price + b.extra_items.reduce((es, e) => es + e.amount, 0), 0);
-  const sharedTotal = sharedLines.reduce((s, l) => s + (l.is_discount ? -Math.abs(l.amount) : l.amount), 0);
-  const totalAdvance = blocks.reduce((s, b) => s + b.advance_amount, 0);
-  const simpleSubtotal = simplePrices.accommodation + simplePrices.transfers - simplePrices.discount;
-
-  const subtotal   = mode === "participant" ? participantTotal + sharedTotal : simpleSubtotal;
-  const taxAmount  = subtotal * taxRate / 100;
-  const total      = subtotal + taxAmount;
-  const advanceAmt = mode === "participant" ? totalAdvance : simplePrices.advance;
-
-  // ── Build items for PDF / save ────────────────────────────────────────────
+  // ─── Build items for PDF / save ────────────────────────────────────────────
 
   function buildItems() {
-    if (mode === "simple") {
-      const r = [];
-      r.push({ description: "Unterkunft + Fotografie / Szállás + Fotózás", quantity: 1, unit_price: simplePrices.accommodation, total: simplePrices.accommodation, is_advance: false });
-      r.push({ description: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek", quantity: 1, unit_price: simplePrices.transfers, total: simplePrices.transfers, is_advance: false });
-      if (simplePrices.discount > 0) r.push({ description: "Rabatt / Kedvezmény", quantity: 1, unit_price: -simplePrices.discount, total: -simplePrices.discount, is_advance: false });
-      if (simplePrices.advance > 0)  r.push({ description: "Anzahlung / Előleg", quantity: 1, unit_price: simplePrices.advance, total: simplePrices.advance, is_advance: true });
-      return r;
-    }
-
-    const result = [];
-    for (const b of blocks) {
-      if (!b.name) continue;
-      // Main service line
-      result.push({
-        description: `${b.service_description} – ${b.name}`,
+    const r = [];
+    r.push({
+      description: simple.accommodation_label,
+      quantity: simple.accommodation_qty,
+      unit_price: simple.accommodation_price,
+      total: accommodationTotal,
+      is_advance: false,
+    });
+    if (simple.transfers_amount > 0) {
+      r.push({
+        description: simple.transfers_label,
         quantity: 1,
-        unit_price: b.unit_price,
-        total: b.unit_price,
+        unit_price: simple.transfers_amount,
+        total: simple.transfers_amount,
         is_advance: false,
       });
-      // Discount line (only if discount > 0)
-      if (b.discount_amount > 0) {
-        result.push({
-          description: `Rabatt / Kedvezmény (${b.discount_percentage}%) – ${b.name}`,
-          quantity: 1,
-          unit_price: -b.discount_amount,
-          total: -b.discount_amount,
-          is_advance: false,
-        });
-      }
-      // Extra items for this participant
-      for (const e of b.extra_items) {
-        if (!e.description && e.amount === 0) continue;
-        result.push({
-          description: `${e.description || "Egyéb"} – ${b.name}`,
-          quantity: 1,
-          unit_price: e.amount,
-          total: e.amount,
-          is_advance: false,
-        });
-      }
     }
-    // Shared lines
-    for (const l of sharedLines) {
-      if (l.amount === 0 && !l.description) continue;
-      const amt = l.is_discount ? -Math.abs(l.amount) : l.amount;
-      result.push({ description: l.description || "Közös tétel", quantity: 1, unit_price: amt, total: amt, is_advance: false });
+    if (discountAmount > 0) {
+      r.push({
+        description: `Rabatt / Kedvezmény (${simple.discount_percentage}%)`,
+        quantity: 1,
+        unit_price: -discountAmount,
+        total: -discountAmount,
+        is_advance: false,
+      });
     }
-    // Combined advance line
-    if (totalAdvance > 0) {
-      result.push({ description: "Anzahlung / Előleg", quantity: 1, unit_price: totalAdvance, total: totalAdvance, is_advance: true });
+    if (simple.surcharge_enabled && surchargeTotal > 0) {
+      r.push({
+        description: simple.surcharge_label,
+        quantity: simple.accommodation_qty,
+        unit_price: simple.surcharge_price,
+        total: surchargeTotal,
+        is_advance: false,
+      });
     }
-    return result;
+    if (simple.advance > 0) {
+      r.push({
+        description: "Anzahlung / Előleg",
+        quantity: 1,
+        unit_price: simple.advance,
+        total: simple.advance,
+        is_advance: true,
+      });
+    }
+    return r;
   }
 
-  // ── PDF preview ───────────────────────────────────────────────────────────
+  // ─── PDF preview ───────────────────────────────────────────────────────────
 
   const previewDebRef = useRef<ReturnType<typeof setTimeout>>();
   const refreshPreview = useCallback(async () => {
@@ -428,9 +312,6 @@ export default function NewInvoicePage() {
         import("@/lib/invoice-pdf"),
       ]);
       const items = buildItems();
-      const subtotalRnd  = Math.round(subtotal  * 100) / 100;
-      const taxAmountRnd = Math.round(taxAmount * 100) / 100;
-      const totalRnd     = Math.round(total     * 100) / 100;
       const invoiceData = {
         id: "preview",
         invoice_number: "RE-" + new Date().getFullYear() + "-XXXX",
@@ -441,10 +322,10 @@ export default function NewInvoicePage() {
         due_date: dueDate || null,
         service_date: serviceDate || null,
         items,
-        subtotal: subtotalRnd,
+        subtotal: Math.round(subtotal * 100) / 100,
         tax_rate: taxRate,
-        tax_amount: taxAmountRnd,
-        total: totalRnd,
+        tax_amount: taxAmount,
+        total: Math.round(total * 100) / 100,
         notes: notes || null,
         sent_at: null,
         paid_at: null,
@@ -461,14 +342,14 @@ export default function NewInvoicePage() {
       setPreviewLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClient, selectedBooking, issueDate, dueDate, serviceDate, taxRate, notes, agencySettings, eurHufRate, subtotal, taxAmount, total, blocks, sharedLines, simplePrices, mode]);
+  }, [selectedClient, selectedBooking, issueDate, dueDate, serviceDate, taxRate, notes, agencySettings, eurHufRate, simple, subtotal, taxAmount, total]);
 
   useEffect(() => {
     previewDebRef.current = setTimeout(() => { void refreshPreview(); }, 700);
     return () => clearTimeout(previewDebRef.current);
   }, [refreshPreview]);
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ─── Save ──────────────────────────────────────────────────────────────────
 
   async function handleSave(sendIt: boolean) {
     if (!selectedClient) { toast.error("Válassz ügyfelet!"); return; }
@@ -497,6 +378,9 @@ export default function NewInvoicePage() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Column grid: [description flex | qty 60px | unit price 120px | total EUR 110px | HUF 100px]
+  const COL = "grid-cols-[1fr_60px_120px_110px_100px]";
 
   return (
     <div>
@@ -570,235 +454,159 @@ export default function NewInvoicePage() {
             </div>
           </div>
 
-          {/* Mode toggle */}
-          <div className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white p-1.5">
-            <button type="button"
-              onClick={() => { setMode("participant"); setModeManuallySet(true); }}
-              className={cn("flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors",
-                mode === "participant" ? "bg-blue-600 text-white" : "text-zinc-500 hover:bg-zinc-50")}>
-              Résztvevőnkénti bontás
-            </button>
-            <button type="button"
-              onClick={() => { setMode("simple"); setModeManuallySet(true); }}
-              className={cn("flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors",
-                mode === "simple" ? "bg-blue-600 text-white" : "text-zinc-500 hover:bg-zinc-50")}>
-              Egyszerű tételek
-            </button>
+          {/* ── Line items ────────────────────────────────────────────────── */}
+          <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 border-b border-zinc-100 pb-2">Positionen / Tételek</h3>
+
+            {/* Column headers */}
+            <div className={cn("grid gap-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 px-1", COL)}>
+              <span>Leírás</span>
+              <span className="text-center">DB</span>
+              <span className="text-right">Egységár</span>
+              <span className="text-right">Összeg EUR</span>
+              <span className="text-right">HUF</span>
+            </div>
+
+            {/* ── Row 1: Accommodation ── */}
+            <div className={cn("grid gap-2 items-center rounded-md px-1 py-2", COL)}>
+              <Input
+                value={simple.accommodation_label}
+                onChange={(e) => patchSimple({ accommodation_label: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <Input
+                type="number" min={1} step={1}
+                value={simple.accommodation_qty}
+                onChange={(e) => patchSimple({ accommodation_qty: Math.max(1, Number(e.target.value)) })}
+                className="h-9 text-sm text-center px-1"
+              />
+              <EurInput value={simple.accommodation_price} onChange={(v) => patchSimple({ accommodation_price: v })} />
+              <p className="text-sm font-semibold text-right pr-1 text-zinc-900">{fmtEur(accommodationTotal)}</p>
+              <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(accommodationTotal, eurHufRate)}</p>
+            </div>
+
+            {/* ── Row 2: Transfers ── */}
+            <div className={cn("grid gap-2 items-center rounded-md px-1 py-2", COL)}>
+              <Input
+                value={simple.transfers_label}
+                onChange={(e) => patchSimple({ transfers_label: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <p className="text-sm text-center text-zinc-400">1</p>
+              <EurInput value={simple.transfers_amount} onChange={(v) => patchSimple({ transfers_amount: v })} />
+              <p className="text-sm font-semibold text-right pr-1 text-zinc-900">{fmtEur(simple.transfers_amount)}</p>
+              <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(simple.transfers_amount, eurHufRate)}</p>
+            </div>
+
+            {/* ── Row 3: Discount ── */}
+            <div className={cn("grid gap-2 items-center rounded-md px-1 py-2 bg-red-50 border border-red-100", COL)}>
+              <div>
+                <p className="text-sm font-medium text-zinc-800">Rabatt / Kedvezmény</p>
+                <p className="text-xs text-red-500 mt-0.5">Levonva az ár × DB alapján</p>
+              </div>
+              {/* DB column: show % input here */}
+              <div className="relative">
+                <Input
+                  type="number" min={0} max={100} step={0.1}
+                  value={simple.discount_percentage}
+                  onChange={(e) => patchSimple({ discount_percentage: Number(e.target.value) })}
+                  className="h-9 text-sm text-right pr-6"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">%</span>
+              </div>
+              <p className="text-xs text-zinc-400 text-right pr-1 self-center">
+                ({simple.discount_percentage}% × {fmtEur(accommodationTotal)})
+              </p>
+              <p className={cn("text-sm font-semibold text-right pr-1", discountAmount > 0 ? "text-red-600" : "text-zinc-400")}>
+                {discountAmount > 0 ? `- ${fmtEur(discountAmount)}` : "—"}
+              </p>
+              <p className="text-sm text-right text-zinc-400 pr-1">
+                {discountAmount > 0 ? fmtHuf(-discountAmount, eurHufRate) : "—"}
+              </p>
+            </div>
+
+            {/* ── Row 4: Per-person surcharge (toggleable) ── */}
+            <div className={cn(
+              "grid gap-2 items-center rounded-md px-1 py-2 border transition-colors",
+              simple.surcharge_enabled
+                ? "bg-orange-50 border-orange-200"
+                : "bg-zinc-50 border-zinc-100 opacity-60",
+              COL,
+            )}>
+              <div className="flex items-start gap-2.5">
+                {/* Toggle */}
+                <button
+                  type="button"
+                  onClick={() => patchSimple({ surcharge_enabled: !simple.surcharge_enabled })}
+                  className={cn(
+                    "relative mt-0.5 flex-shrink-0 w-9 h-5 rounded-full transition-colors focus-visible:outline-none",
+                    simple.surcharge_enabled ? "bg-orange-500" : "bg-zinc-300",
+                  )}
+                  aria-pressed={simple.surcharge_enabled}
+                >
+                  <span className={cn(
+                    "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                    simple.surcharge_enabled && "translate-x-4",
+                  )} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <Input
+                    value={simple.surcharge_label}
+                    onChange={(e) => patchSimple({ surcharge_label: e.target.value })}
+                    disabled={!simple.surcharge_enabled}
+                    className="h-9 text-sm disabled:opacity-50"
+                    placeholder="pl. Személyenkénti felár"
+                  />
+                  {!simple.surcharge_enabled && (
+                    <p className="text-xs text-zinc-400 mt-0.5">Kapcsold be a sor aktiválásához</p>
+                  )}
+                </div>
+              </div>
+              {/* DB: same qty as accommodation, read-only */}
+              <p className={cn("text-sm text-center", simple.surcharge_enabled ? "text-zinc-700 font-medium" : "text-zinc-300")}>
+                {simple.accommodation_qty}
+              </p>
+              <EurInput
+                value={simple.surcharge_price}
+                onChange={(v) => patchSimple({ surcharge_price: v })}
+                disabled={!simple.surcharge_enabled}
+                className="disabled:opacity-40"
+              />
+              <p className={cn("text-sm font-semibold text-right pr-1", simple.surcharge_enabled && surchargeTotal > 0 ? "text-orange-700" : "text-zinc-300")}>
+                {simple.surcharge_enabled && surchargeTotal > 0 ? fmtEur(surchargeTotal) : "—"}
+              </p>
+              <p className="text-sm text-right text-zinc-400 pr-1">
+                {simple.surcharge_enabled && surchargeTotal > 0 ? fmtHuf(surchargeTotal, eurHufRate) : "—"}
+              </p>
+            </div>
+
+            {/* ── Row 5: Advance ── */}
+            <div className="rounded-md px-1 py-2 space-y-2">
+              <div className={cn("grid gap-2 items-center bg-amber-50 border border-amber-100 rounded-md px-1 py-2", COL)}>
+                <div>
+                  <p className="text-sm font-medium text-zinc-800">Anzahlung / Előleg</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Nem számít bele a végösszegbe</p>
+                </div>
+                <p className="text-sm text-center text-zinc-400">1</p>
+                <EurInput value={simple.advance} onChange={(v) => patchSimple({ advance: v })} />
+                <p className={cn("text-sm font-semibold text-right pr-1", simple.advance > 0 ? "text-amber-700" : "text-zinc-400")}>
+                  {simple.advance > 0 ? fmtEur(simple.advance) : "—"}
+                </p>
+                <p className="text-sm text-right text-zinc-400 pr-1">
+                  {simple.advance > 0 ? fmtHuf(simple.advance, eurHufRate) : "—"}
+                </p>
+              </div>
+              {/* Remaining */}
+              {simple.advance > 0 && (
+                <div className={cn("grid gap-2 items-center rounded-md px-1 py-1.5 bg-green-50 border border-green-100", COL)}>
+                  <p className="text-sm font-semibold text-green-800">Fennmaradó összeg / Restzahlung</p>
+                  <span /><span />
+                  <p className="text-sm font-bold text-right pr-1 text-green-700">{fmtEur(remaining)}</p>
+                  <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(remaining, eurHufRate)}</p>
+                </div>
+              )}
+            </div>
           </div>
-
-          {/* ── PARTICIPANT MODE ──────────────────────────────────────────── */}
-          {mode === "participant" && (
-            <div className="space-y-4">
-              {blocks.map((block, bi) => {
-                const blockTotal = block.final_price + block.extra_items.reduce((s, e) => s + e.amount, 0);
-                return (
-                  <div key={block.id} className="rounded-md border border-zinc-200 bg-white overflow-hidden">
-                    {/* Participant header */}
-                    <div className="flex items-center gap-3 bg-zinc-50 border-b border-zinc-200 px-4 py-2.5">
-                      <span className="text-xs font-bold uppercase tracking-wide text-zinc-400 w-5 text-center">{bi + 1}.</span>
-                      <Input
-                        value={block.name}
-                        onChange={(e) => updateBlock(block.id, { name: e.target.value })}
-                        placeholder="Résztvevő neve"
-                        className="flex-1 h-8 text-sm font-semibold bg-transparent border-0 shadow-none focus-visible:ring-0 px-0"
-                      />
-                      {blocks.length > 1 && (
-                        <button type="button" onClick={() => removeBlock(block.id)} className="text-zinc-300 hover:text-red-500 p-1">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="p-4 space-y-3">
-                      {/* Service description + price */}
-                      <div className="grid grid-cols-[1fr_140px] gap-3 items-end">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-zinc-400 uppercase tracking-wide">Szolgáltatás megnevezése</Label>
-                          <Input
-                            value={block.service_description}
-                            onChange={(e) => updateBlock(block.id, { service_description: e.target.value })}
-                            placeholder="pl. Szállás + Fotózás"
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-zinc-400 uppercase tracking-wide">Ár (€)</Label>
-                          <div className="relative">
-                            <Input type="number" min={0} value={block.unit_price}
-                              onChange={(e) => updateBlockPrice(block.id, Number(e.target.value))}
-                              className="h-8 text-sm text-right pr-7" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">€</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Discount */}
-                      <div className="grid grid-cols-[1fr_140px_140px] gap-3 items-end">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-zinc-400 uppercase tracking-wide">Kedvezmény %</Label>
-                          <div className="relative">
-                            <Input type="number" min={0} max={100} value={block.discount_percentage}
-                              onChange={(e) => updateBlockDiscount(block.id, Number(e.target.value))}
-                              className="h-8 text-sm text-right pr-7" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">%</span>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-zinc-400 uppercase tracking-wide">Kedvezmény összeg (€)</Label>
-                          <p className="h-8 flex items-center justify-end text-sm font-medium text-red-600 pr-1">
-                            {block.discount_amount > 0 ? `- ${fmtEur(block.discount_amount)}` : "—"}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-zinc-400 uppercase tracking-wide">Fizetendő (€)</Label>
-                          <p className="h-8 flex items-center justify-end text-sm font-semibold text-zinc-900 pr-1">
-                            {fmtEur(block.final_price)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Extra items */}
-                      {block.extra_items.length > 0 && (
-                        <div className="rounded-md bg-zinc-50 border border-zinc-100 p-3 space-y-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Egyéb tételek</p>
-                          {block.extra_items.map((e) => (
-                            <div key={e.id} className="grid grid-cols-[1fr_120px_28px] gap-2 items-center">
-                              <Input value={e.description}
-                                onChange={(ev) => updateExtraItem(block.id, e.id, "description", ev.target.value)}
-                                placeholder="pl. Vacsora, Belépő, Kirándulás…"
-                                className="h-8 text-sm" />
-                              <div className="relative">
-                                <Input type="number" min={0} value={e.amount}
-                                  onChange={(ev) => updateExtraItem(block.id, e.id, "amount", Number(ev.target.value))}
-                                  className="h-8 text-sm text-right pr-7" />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">€</span>
-                              </div>
-                              <button type="button" onClick={() => removeExtraItem(block.id, e.id)}
-                                className="text-zinc-300 hover:text-red-500 p-1">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Advance + add item */}
-                      <div className="flex items-center gap-4 pt-1">
-                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
-                          onClick={() => addExtraItem(block.id)}>
-                          <Plus className="mr-1 h-3 w-3" />
-                          Tétel hozzáadása
-                        </Button>
-                        <div className="flex items-center gap-2 ml-auto">
-                          <Label className="text-[10px] text-zinc-400 uppercase tracking-wide whitespace-nowrap">Előleg (€)</Label>
-                          <div className="relative w-28">
-                            <Input type="number" min={0} value={block.advance_amount}
-                              onChange={(e) => updateBlock(block.id, { advance_amount: Number(e.target.value) })}
-                              className="h-7 text-xs text-right pr-6" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400">€</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Block subtotal */}
-                      <div className="flex justify-end border-t border-zinc-100 pt-2">
-                        <span className="text-xs text-zinc-400 mr-2">Részösszeg:</span>
-                        <span className="text-sm font-semibold text-zinc-800">{fmtEur(blockTotal)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Add participant */}
-              <Button type="button" variant="outline" className="w-full h-9 text-sm border-dashed" onClick={addBlock}>
-                <Plus className="mr-2 h-4 w-4" />
-                Résztvevő hozzáadása
-              </Button>
-
-              {/* Shared lines */}
-              <div className="rounded-md border border-zinc-200 bg-white p-4 space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Közös tételek</h4>
-                {sharedLines.map((l) => (
-                  <div key={l.id} className="grid grid-cols-[1fr_120px_140px_28px] gap-2 items-center">
-                    <Input value={l.description}
-                      onChange={(e) => setSharedLines((prev) => prev.map((s) => s.id === l.id ? { ...s, description: e.target.value } : s))}
-                      placeholder="pl. Transzfer, Közös kirándulás…"
-                      className="h-8 text-sm" />
-                    <div className="relative">
-                      <Input type="number" min={0} value={l.amount}
-                        onChange={(e) => setSharedLines((prev) => prev.map((s) => s.id === l.id ? { ...s, amount: Number(e.target.value) } : s))}
-                        className="h-8 text-sm text-right pr-7" />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">€</span>
-                    </div>
-                    <label className="flex items-center gap-1.5 text-xs text-zinc-500">
-                      <input type="checkbox" checked={l.is_discount}
-                        onChange={(e) => setSharedLines((prev) => prev.map((s) => s.id === l.id ? { ...s, is_discount: e.target.checked } : s))} />
-                      Kedvezmény (levonva)
-                    </label>
-                    <button type="button"
-                      onClick={() => setSharedLines((prev) => prev.filter((s) => s.id !== l.id))}
-                      className="text-zinc-300 hover:text-red-500 p-1">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
-                  onClick={() => setSharedLines((prev) => [...prev, { id: crypto.randomUUID(), description: "", amount: 0, is_discount: false }])}>
-                  <Plus className="mr-1 h-3 w-3" />
-                  Közös tétel
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* ── SIMPLE MODE ───────────────────────────────────────────────── */}
-          {mode === "simple" && (
-            <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 border-b border-zinc-100 pb-1">Positionen / Tételek</h3>
-              <div className="grid grid-cols-[1fr_130px_130px_110px] gap-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 px-1">
-                <span>Leírás</span><span className="text-right">EUR</span><span className="text-right">HUF</span><span className="text-right">Összeg</span>
-              </div>
-              <div className="space-y-2">
-                {(["accommodation", "transfers", "discount", "advance"] as const).map((key) => {
-                  const labels: Record<string, string> = {
-                    accommodation: "Unterkunft + Fotografie / Szállás + Fotózás",
-                    transfers: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek",
-                    discount: "Rabatt / Kedvezmény",
-                    advance: "Anzahlung / Előleg",
-                  };
-                  const isDiscount = key === "discount";
-                  const isAdvance  = key === "advance";
-                  const rawVal = simplePrices[key];
-                  return (
-                    <div key={key} className={cn(
-                      "grid grid-cols-[1fr_130px_130px_110px] gap-2 items-center rounded-md px-1 py-1",
-                      isAdvance && "bg-amber-50 border border-amber-100",
-                      isDiscount && "bg-red-50 border border-red-100",
-                    )}>
-                      <div>
-                        <p className="text-sm font-medium text-zinc-800">{labels[key]}</p>
-                        {isAdvance  && <p className="text-xs text-amber-600 mt-0.5">Nem számít bele a végösszegbe</p>}
-                        {isDiscount && <p className="text-xs text-red-500 mt-0.5">Kedvezmény (levonva)</p>}
-                      </div>
-                      <div className="relative">
-                        <Input type="number" min={0} step={0.01} value={rawVal}
-                          onChange={(e) => setSimplePrices((p) => ({ ...p, [key]: Number(e.target.value) }))}
-                          className="h-8 text-sm text-right pr-8" />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">EUR</span>
-                      </div>
-                      <p className="text-sm text-right text-zinc-600 pr-1">
-                        {fmtHuf(Math.abs(rawVal) * (isDiscount ? -1 : 1), eurHufRate)}
-                      </p>
-                      <p className={cn("text-sm font-medium text-right pr-1", isDiscount && "text-red-600", isAdvance && "text-amber-700")}>
-                        {fmtEur(isDiscount ? -Math.abs(rawVal) : rawVal)}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* ── Tax + totals ──────────────────────────────────────────────── */}
           <div className="rounded-md border border-zinc-200 bg-white p-5 space-y-4">
@@ -816,22 +624,6 @@ export default function NewInvoicePage() {
               <div className="grid grid-cols-3 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 mb-1">
                 <span /><span className="text-right">EUR</span><span className="text-right">HUF</span>
               </div>
-              {mode === "participant" && (
-                <>
-                  <div className="grid grid-cols-3 text-sm">
-                    <span className="text-zinc-500">Résztvevők összesen</span>
-                    <span className="font-medium text-right">{fmtEur(participantTotal)}</span>
-                    <span className="text-right text-zinc-400">{fmtHuf(participantTotal, eurHufRate)}</span>
-                  </div>
-                  {sharedTotal !== 0 && (
-                    <div className="grid grid-cols-3 text-sm">
-                      <span className="text-zinc-500">Közös tételek</span>
-                      <span className="font-medium text-right">{fmtEur(sharedTotal)}</span>
-                      <span className="text-right text-zinc-400">{fmtHuf(sharedTotal, eurHufRate)}</span>
-                    </div>
-                  )}
-                </>
-              )}
               <div className="grid grid-cols-3 text-sm">
                 <span className="text-zinc-500">Nettobetrag</span>
                 <span className="font-medium text-right">{fmtEur(subtotal)}</span>
@@ -847,19 +639,19 @@ export default function NewInvoicePage() {
                 <span className="text-blue-700 text-right">{fmtEur(total)}</span>
                 <span className="text-blue-500 text-right text-sm">{fmtHuf(total, eurHufRate)}</span>
               </div>
-              {advanceAmt > 0 && (
-                <div className="grid grid-cols-3 text-sm border-t border-amber-200 pt-2 text-amber-700">
-                  <span>Előleg</span>
-                  <span className="text-right">{fmtEur(-advanceAmt)}</span>
-                  <span className="text-right text-xs">{fmtHuf(-advanceAmt, eurHufRate)}</span>
-                </div>
-              )}
-              {advanceAmt > 0 && (
-                <div className="grid grid-cols-3 text-sm font-semibold text-green-700">
-                  <span>Még fizetendő</span>
-                  <span className="text-right">{fmtEur(total - advanceAmt)}</span>
-                  <span className="text-right text-xs font-normal text-zinc-400">{fmtHuf(total - advanceAmt, eurHufRate)}</span>
-                </div>
+              {simple.advance > 0 && (
+                <>
+                  <div className="grid grid-cols-3 text-sm border-t border-amber-200 pt-2 text-amber-700">
+                    <span>Előleg</span>
+                    <span className="text-right">- {fmtEur(simple.advance)}</span>
+                    <span className="text-right text-xs">{fmtHuf(-simple.advance, eurHufRate)}</span>
+                  </div>
+                  <div className="grid grid-cols-3 text-sm font-semibold text-green-700">
+                    <span>Még fizetendő</span>
+                    <span className="text-right">{fmtEur(remaining)}</span>
+                    <span className="text-right text-xs font-normal text-zinc-400">{fmtHuf(remaining, eurHufRate)}</span>
+                  </div>
+                </>
               )}
             </div>
           </div>
