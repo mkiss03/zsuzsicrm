@@ -52,14 +52,24 @@ interface BookingStatusFlowProps {
   depositPaidAt?: string | null;
   fullyPaidAt?: string | null;
   onStatusChange: (newStatus: BookingStatus) => Promise<void> | void;
+  onRequestPayment?: (type: "deposit" | "full_payment") => void;
   disabled?: boolean;
 }
+
+// Steps that represent money actually arriving — these must go through a
+// real payment record instead of a blind status jump, so revenue reports
+// and the "lejárt" overdue flag stay accurate.
+const PAYMENT_STEPS: Partial<Record<BookingStatus, "deposit" | "full_payment">> = {
+  deposit_paid: "deposit",
+  fully_paid:   "full_payment",
+};
 
 export function BookingStatusFlow({
   status,
   depositPaidAt,
   fullyPaidAt,
   onStatusChange,
+  onRequestPayment,
   disabled = false,
 }: BookingStatusFlowProps) {
   const [confirmTarget, setConfirmTarget] = useState<BookingStatus | null>(null);
@@ -129,7 +139,15 @@ export function BookingStatusFlow({
                   {/* Step */}
                   <div className="flex flex-col items-center">
                     <button
-                      onClick={() => !isLocked && isNext && setConfirmTarget(step.status)}
+                      onClick={() => {
+                        if (isLocked || !isNext) return;
+                        const paymentType = PAYMENT_STEPS[step.status];
+                        if (paymentType && onRequestPayment) {
+                          onRequestPayment(paymentType);
+                        } else {
+                          setConfirmTarget(step.status);
+                        }
+                      }}
                       disabled={isLocked || !isNext}
                       className={cn(
                         "flex h-9 w-9 items-center justify-center rounded-md border-2 text-sm font-semibold transition-all",

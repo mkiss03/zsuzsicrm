@@ -15,11 +15,13 @@ import {
   MoreHorizontal,
   Search,
   X,
+  Wallet,
 } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { toast } from "sonner";
 
-import { useBookings, type BookingListParams, type BookingRow } from "@/hooks/useBookings";
+import { useBookings, type BookingListParams, type BookingRow, type PaymentResult } from "@/hooks/useBookings";
+import { PaymentForm } from "@/components/bookings/PaymentForm";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -79,21 +81,27 @@ function DeadlineCell({ deadline }: { deadline: string | null }) {
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
-function exportCSV(rows: BookingRow[]) {
-  const headers = ["Kód","Ügyfél","Utazás","Státusz","Alap ár","Kedvezmény","Végösszeg","Előleg fizetve","Határidő","Forrás","Létrehozva"];
-  const data = rows.map((b) => [
-    b.booking_code,
-    b.client ? `${b.client.last_name} ${b.client.first_name}` : "",
-    b.trip?.name ?? "",
-    b.status,
-    String(b.base_amount ?? ""),
-    String(b.discount_amount ?? ""),
-    String(b.final_amount ?? ""),
-    b.deposit_paid_at ? "Igen" : "Nem",
-    b.payment_deadline ?? "",
-    b.source ? SOURCE_LABELS[b.source] : "",
-    b.created_at.slice(0, 10),
-  ]);
+function exportCSV(rows: BookingRow[], paidByBooking: Record<string, number>) {
+  const headers = ["Kód","Ügyfél","Utazás","Státusz","Alap ár","Kedvezmény","Végösszeg","Befizetett összeg","Fennmaradó összeg","Előleg fizetve","Határidő","Forrás","Létrehozva"];
+  const data = rows.map((b) => {
+    const paid = paidByBooking[b.id] ?? 0;
+    const remaining = b.final_amount != null ? Math.max(b.final_amount - paid, 0) : "";
+    return [
+      b.booking_code,
+      b.client ? `${b.client.last_name} ${b.client.first_name}` : "",
+      b.trip?.name ?? "",
+      b.status,
+      String(b.base_amount ?? ""),
+      String(b.discount_amount ?? ""),
+      String(b.final_amount ?? ""),
+      String(paid),
+      String(remaining),
+      b.deposit_paid_at ? "Igen" : "Nem",
+      b.payment_deadline ?? "",
+      b.source ? SOURCE_LABELS[b.source] : "",
+      b.created_at.slice(0, 10),
+    ];
+  });
   const csv = "﻿" + [headers, ...data]
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
     .join("\n");
@@ -148,6 +156,8 @@ export default function BookingsPage() {
   const [trips, setTrips]           = useState<Pick<Trip, "id" | "name">[]>([]);
   const [exporting, setExporting]   = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BookingRow | null>(null);
+  const [paymentTarget, setPaymentTarget]     = useState<BookingRow | null>(null);
+  const [paymentRemaining, setPaymentRemaining] = useState(0);
 
   // Filters
   const [search, setSearch]               = useState("");
@@ -192,6 +202,39 @@ export default function BookingsPage() {
       .then(({ data }) => setTrips(data ?? []));
   }, []);
 
+  async function openQuickPayment(row: BookingRow) {
+    setPaymentTarget(row);
+    const { data } = await supabase
+      .from("payments")
+      .select("amount, type")
+      .eq("booking_id", row.id);
+    const totalPaid = (data ?? []).reduce(
+      (s: number, p: { amount: number; type: string }) => (p.type === "refund" ? s - p.amount : s + p.amount),
+      0,
+    );
+    const remaining = row.final_amount != null ? Math.max(row.final_amount - totalPaid, 0) : 0;
+    setPaymentRemaining(remaining);
+  }
+
+  function handleQuickPaymentAdded(result: PaymentResult) {
+    if (!paymentTarget) return;
+    setBookings((prev) =>
+      prev.map((b) =>
+        b.id === paymentTarget.id
+          ? {
+              ...b,
+              status: result.newStatus,
+              deposit_paid_at: result.depositPaidAt ?? b.deposit_paid_at,
+              fully_paid_at: result.fullyPaidAt ?? b.fully_paid_at,
+            }
+          : b,
+      ),
+    );
+    setPaymentTarget(null);
+    toast.success("Fizetés sikeresen rögzítve");
+    void getBookingStats().then((s) => { if (s) setStats(s); });
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     const ok = await deleteBooking(deleteTarget.id);
@@ -213,9 +256,21 @@ export default function BookingsPage() {
       toDate: toDate || null,
       overdueOnly,
     });
+    if (all && all.length > 0) {
+      const { data: pays } = await supabase
+        .from("payments")
+        .select("booking_id, amount, type")
+        .in("booking_id", all.map((b) => b.id));
+      const paidByBooking: Record<string, number> = {};
+      for (const p of (pays ?? []) as { booking_id: string; amount: number; type: string }[]) {
+        paidByBooking[p.booking_id] = (paidByBooking[p.booking_id] ?? 0) +
+          (p.type === "refund" ? -p.amount : p.amount);
+      }
+      exportCSV(all, paidByBooking);
+    } else {
+      toast.info("Nincs exportálható adat");
+    }
     setExporting(false);
-    if (all && all.length > 0) exportCSV(all);
-    else toast.info("Nincs exportálható adat");
   }
 
   // ── Columns ────────────────────────────────────────────────────────────────
@@ -279,6 +334,11 @@ export default function BookingsPage() {
             <DropdownMenuItem onClick={() => router.push(`/bookings/${row.id}`)}>
               <Eye className="mr-2 h-4 w-4" />Megtekint
             </DropdownMenuItem>
+            {row.status !== "cancelled" && row.status !== "completed" && (
+              <DropdownMenuItem onClick={() => void openQuickPayment(row)}>
+                <Wallet className="mr-2 h-4 w-4" />Fizetés rögzítése
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -411,6 +471,16 @@ export default function BookingsPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {paymentTarget && (
+        <PaymentForm
+          open={!!paymentTarget}
+          bookingId={paymentTarget.id}
+          remainingBalance={paymentRemaining}
+          onSuccess={handleQuickPaymentAdded}
+          onCancel={() => setPaymentTarget(null)}
+        />
+      )}
     </div>
   );
 }

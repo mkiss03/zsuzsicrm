@@ -24,6 +24,7 @@ import {
 import { useBookings, type PaymentResult } from "@/hooks/useBookings";
 import { BookingStatusFlow } from "@/components/bookings/BookingStatusFlow";
 import { PaymentHistory } from "@/components/bookings/PaymentHistory";
+import { PaymentForm } from "@/components/bookings/PaymentForm";
 import { WorkflowTab } from "@/components/bookings/WorkflowTab";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { BookingStatusBadge } from "@/components/shared/StatusBadge";
@@ -74,6 +75,10 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
   const [booking, setBooking]   = useState(initialBooking);
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [showDelete, setShowDelete] = useState(false);
+  const [quickPayment, setQuickPayment] = useState<{ open: boolean; type: "deposit" | "full_payment" }>({
+    open: false,
+    type: "deposit",
+  });
 
   const defaultTab = searchParams.get("tab") === "workflow" ? "workflow" : "attekintes";
 
@@ -267,6 +272,7 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
         depositPaidAt={booking.deposit_paid_at}
         fullyPaidAt={booking.fully_paid_at}
         onStatusChange={handleStatusChange}
+        onRequestPayment={(type) => setQuickPayment({ open: true, type })}
       />
 
       {/* Info cards */}
@@ -400,6 +406,22 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
         currentStatus={booking.status}
         onPaymentAdded={handlePaymentAdded}
         onPaymentDeleted={handlePaymentDeleted}
+      />
+
+      {/* Quick payment dialog — opened from the status stepper's "Előleg fizetve" /
+          "Teljesen fizetve" steps, so status only ever advances via a real payment. */}
+      <PaymentForm
+        open={quickPayment.open}
+        bookingId={booking.id}
+        remainingBalance={remaining ?? 0}
+        defaultType={quickPayment.type}
+        defaultAmount={quickPayment.type === "deposit" ? booking.deposit_amount ?? undefined : undefined}
+        onSuccess={(result) => {
+          setQuickPayment((q) => ({ ...q, open: false }));
+          handlePaymentAdded(result);
+          toast.success("Fizetés sikeresen rögzítve");
+        }}
+        onCancel={() => setQuickPayment((q) => ({ ...q, open: false }))}
       />
 
         </TabsContent>

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { paymentSchema, type PaymentFormValues } from "@/lib/validators/booking";
 import { useBookings, type PaymentResult } from "@/hooks/useBookings";
+import type { PaymentType } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,8 @@ interface PaymentFormProps {
   open: boolean;
   bookingId: string;
   remainingBalance: number;   // pre-fill amount suggestion
+  defaultType?: PaymentType;
+  defaultAmount?: number;
   onSuccess: (result: PaymentResult) => void;
   onCancel: () => void;
 }
@@ -62,6 +65,8 @@ export function PaymentForm({
   open,
   bookingId,
   remainingBalance,
+  defaultType,
+  defaultAmount,
   onSuccess,
   onCancel,
 }: PaymentFormProps) {
@@ -78,8 +83,8 @@ export function PaymentForm({
   } = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      amount: remainingBalance > 0 ? remainingBalance : 0,
-      type: "full_payment",
+      amount: defaultAmount ?? (remainingBalance > 0 ? remainingBalance : 0),
+      type: defaultType ?? "full_payment",
       payment_date: new Date().toISOString().slice(0, 16),
       account: undefined,
       currency: "HUF",
@@ -98,15 +103,15 @@ export function PaymentForm({
   useEffect(() => {
     if (open) {
       reset({
-        amount: remainingBalance > 0 ? remainingBalance : 0,
-        type: "full_payment",
+        amount: defaultAmount ?? (remainingBalance > 0 ? remainingBalance : 0),
+        type: defaultType ?? "full_payment",
         payment_date: new Date().toISOString().slice(0, 16),
         account: undefined,
         currency: "HUF",
         notes: "",
       });
     }
-  }, [open, remainingBalance, reset]);
+  }, [open, remainingBalance, defaultAmount, defaultType, reset]);
 
   async function onSubmit(values: PaymentFormValues) {
     const result = await addPayment(bookingId, values);
