@@ -604,15 +604,21 @@ export default function NewInvoicePage() {
                   {simple.advance > 0 ? fmtHuf(simple.advance, eurHufRate) : "—"}
                 </p>
               </div>
-              {/* Remaining */}
-              {simple.advance > 0 && (
-                <div className={cn("grid gap-2 items-center rounded-md px-1 py-1.5 bg-green-50 border border-green-100", COL)}>
-                  <p className="text-sm font-semibold text-green-800">Fennmaradó összeg / Restzahlung</p>
-                  <span /><span />
-                  <p className="text-sm font-bold text-right pr-1 text-green-700">{fmtEur(remaining)}</p>
-                  <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(remaining, eurHufRate)}</p>
+              {/* Remaining — always visible once total is non-zero */}
+              <div className={cn("grid gap-2 items-center rounded-md px-3 py-2.5 border", COL,
+                total > 0 ? "bg-green-50 border-green-200" : "bg-zinc-50 border-zinc-100 opacity-50")}>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Helyszínen fizetendő / Restzahlung</p>
+                  <p className="text-xs text-green-600 mt-0.5">Végösszeg − Előleg</p>
                 </div>
-              )}
+                <span /><span />
+                <p className={cn("text-sm font-bold text-right pr-1", total > 0 ? "text-green-700" : "text-zinc-400")}>
+                  {fmtEur(remaining)}
+                </p>
+                <p className="text-sm text-right text-zinc-400 pr-1">
+                  {fmtHuf(remaining, eurHufRate)}
+                </p>
+              </div>
             </div>
           </div>
 
