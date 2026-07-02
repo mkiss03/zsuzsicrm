@@ -19,11 +19,22 @@ import {
   Path,
 } from "@react-pdf/renderer";
 
+// On the server, fontkit reads fonts directly from a filesystem path.
+// In the browser, it must fetch them over HTTP from window.location.origin.
+function fontSrc(filename: string): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/fonts/${filename}`;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const path = require("path") as typeof import("path");
+  return path.join(process.cwd(), "public", "fonts", filename);
+}
+
 Font.register({
   family: "Lato",
   fonts: [
-    { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Regular.ttf", fontWeight: 400 },
-    { src: (typeof window !== "undefined" ? window.location.origin : "") + "/fonts/Lato-Bold.ttf",    fontWeight: 700 },
+    { src: fontSrc("Lato-Regular.ttf"), fontWeight: 400 },
+    { src: fontSrc("Lato-Bold.ttf"),    fontWeight: 700 },
   ],
 });
 Font.registerHyphenationCallback((word) => [word]);

@@ -4,8 +4,6 @@ import { Resend } from "resend";
 import React from "react";
 import { format, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
-import { join } from "path";
-import { readFileSync } from "fs";
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "noreply@zsuzsitravel.hu";
 
@@ -179,20 +177,8 @@ export async function POST(
   // ── 7. Generate PDF — load fonts from filesystem (reliable server-side) ─────
   let pdfBuffer: Buffer | null = null;
   try {
-    const { Font, renderToBuffer } = await import("@react-pdf/renderer");
+    const { renderToBuffer } = await import("@react-pdf/renderer");
     const { InvoicePDF } = await import("@/lib/invoice-pdf");
-
-    // Load font files directly from filesystem — avoids HTTP fetch on server
-    const fontRegular = readFileSync(join(process.cwd(), "public", "fonts", "Lato-Regular.ttf"));
-    const fontBold    = readFileSync(join(process.cwd(), "public", "fonts", "Lato-Bold.ttf"));
-
-    Font.register({
-      family: "Lato",
-      fonts: [
-        { src: fontRegular as unknown as string, fontWeight: 400 },
-        { src: fontBold    as unknown as string, fontWeight: 700 },
-      ],
-    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const element = React.createElement(InvoicePDF as any, {
