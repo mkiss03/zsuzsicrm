@@ -2,6 +2,12 @@
 const nextConfig = {
   experimental: {
     // typedRoutes: true,  // re-enable once all route pages exist
+    // Font files are loaded from the filesystem at runtime via a dynamically
+    // built path (invoice-pdf.tsx), so Next's output file tracer can't detect
+    // the dependency on its own — force-include them in the serverless bundle.
+    outputFileTracingIncludes: {
+      "/api/**/*": ["./public/fonts/**"],
+    },
   },
   images: {
     remotePatterns: [
