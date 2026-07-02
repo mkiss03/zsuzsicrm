@@ -21,13 +21,12 @@ import {
 
 // On the server, fontkit reads fonts directly from a filesystem path.
 // In the browser, it must fetch them over HTTP from window.location.origin.
+// (Avoids a static/dynamic `path` import so this file still bundles for the browser.)
 function fontSrc(filename: string): string {
   if (typeof window !== "undefined") {
     return `${window.location.origin}/fonts/${filename}`;
   }
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const path = require("path") as typeof import("path");
-  return path.join(process.cwd(), "public", "fonts", filename);
+  return `${process.cwd()}/public/fonts/${filename}`;
 }
 
 Font.register({
