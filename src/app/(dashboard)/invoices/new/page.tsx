@@ -123,6 +123,7 @@ interface SimpleState {
   accommodation_qty: number;
   transfers_label: string;
   transfers_amount: number;
+  transfers_qty: number;
   discount_percentage: number;
   surcharge_enabled: boolean;
   surcharge_label: string;
@@ -136,6 +137,7 @@ const DEFAULT_SIMPLE: SimpleState = {
   accommodation_qty: 1,
   transfers_label: "Transfers + Sonstige Kosten / Transzferek + Egyéb költségek",
   transfers_amount: 0,
+  transfers_qty: 1,
   discount_percentage: 0,
   surcharge_enabled: false,
   surcharge_label: "Személyenkénti felár / Zuschlag pro Person",
@@ -201,11 +203,12 @@ export default function NewInvoicePage() {
   // ─── Computed ──────────────────────────────────────────────────────────────
 
   const accommodationTotal = Math.round(simple.accommodation_price * simple.accommodation_qty * 100) / 100;
+  const transfersTotal     = Math.round(simple.transfers_amount * simple.transfers_qty * 100) / 100;
   const discountAmount     = Math.round(accommodationTotal * simple.discount_percentage / 100 * 100) / 100;
   const surchargeTotal     = simple.surcharge_enabled
     ? Math.round(simple.surcharge_price * simple.accommodation_qty * 100) / 100
     : 0;
-  const subtotal  = accommodationTotal + simple.transfers_amount - discountAmount + surchargeTotal;
+  const subtotal  = accommodationTotal + transfersTotal - discountAmount + surchargeTotal;
   const taxAmount = Math.round(subtotal * taxRate / 100 * 100) / 100;
   const total     = subtotal + taxAmount;
   const remaining = Math.max(total - simple.advance, 0);
@@ -264,9 +267,9 @@ export default function NewInvoicePage() {
     if (simple.transfers_amount > 0) {
       r.push({
         description: simple.transfers_label,
-        quantity: 1,
+        quantity: simple.transfers_qty,
         unit_price: simple.transfers_amount,
-        total: simple.transfers_amount,
+        total: transfersTotal,
         is_advance: false,
       });
     }
@@ -478,7 +481,7 @@ export default function NewInvoicePage() {
                 type="number" min={1} step={1}
                 value={simple.accommodation_qty}
                 onChange={(e) => patchSimple({ accommodation_qty: Math.max(1, Number(e.target.value)) })}
-                className="h-9 text-sm text-center px-1"
+                className="h-9 text-sm text-center px-2"
               />
               <EurInput value={simple.accommodation_price} onChange={(v) => patchSimple({ accommodation_price: v })} />
               <p className="text-sm font-semibold text-right pr-1 text-zinc-900">{fmtEur(accommodationTotal)}</p>
@@ -492,10 +495,15 @@ export default function NewInvoicePage() {
                 onChange={(e) => patchSimple({ transfers_label: e.target.value })}
                 className="h-9 text-sm"
               />
-              <p className="text-sm text-center text-zinc-400">1</p>
+              <Input
+                type="number" min={1} step={1}
+                value={simple.transfers_qty}
+                onChange={(e) => patchSimple({ transfers_qty: Math.max(1, Number(e.target.value)) })}
+                className="h-9 text-sm text-center px-2"
+              />
               <EurInput value={simple.transfers_amount} onChange={(v) => patchSimple({ transfers_amount: v })} />
-              <p className="text-sm font-semibold text-right pr-1 text-zinc-900">{fmtEur(simple.transfers_amount)}</p>
-              <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(simple.transfers_amount, eurHufRate)}</p>
+              <p className="text-sm font-semibold text-right pr-1 text-zinc-900">{fmtEur(transfersTotal)}</p>
+              <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(transfersTotal, eurHufRate)}</p>
             </div>
 
             {/* ── Row 3: Discount ── */}
@@ -596,15 +604,21 @@ export default function NewInvoicePage() {
                   {simple.advance > 0 ? fmtHuf(simple.advance, eurHufRate) : "—"}
                 </p>
               </div>
-              {/* Remaining */}
-              {simple.advance > 0 && (
-                <div className={cn("grid gap-2 items-center rounded-md px-1 py-1.5 bg-green-50 border border-green-100", COL)}>
-                  <p className="text-sm font-semibold text-green-800">Fennmaradó összeg / Restzahlung</p>
-                  <span /><span />
-                  <p className="text-sm font-bold text-right pr-1 text-green-700">{fmtEur(remaining)}</p>
-                  <p className="text-sm text-right text-zinc-400 pr-1">{fmtHuf(remaining, eurHufRate)}</p>
+              {/* Remaining — always visible once total is non-zero */}
+              <div className={cn("grid gap-2 items-center rounded-md px-3 py-2.5 border", COL,
+                total > 0 ? "bg-green-50 border-green-200" : "bg-zinc-50 border-zinc-100 opacity-50")}>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Helyszínen fizetendő / Restzahlung</p>
+                  <p className="text-xs text-green-600 mt-0.5">Végösszeg − Előleg</p>
                 </div>
-              )}
+                <span /><span />
+                <p className={cn("text-sm font-bold text-right pr-1", total > 0 ? "text-green-700" : "text-zinc-400")}>
+                  {fmtEur(remaining)}
+                </p>
+                <p className="text-sm text-right text-zinc-400 pr-1">
+                  {fmtHuf(remaining, eurHufRate)}
+                </p>
+              </div>
             </div>
           </div>
 
