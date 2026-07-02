@@ -15,17 +15,28 @@ import {
   Send,
   Pencil,
   Check,
+  X,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
 
 import { useInvoices } from "@/hooks/useInvoices";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Invoice, InvoiceStatus, Client } from "@/types";
+import type { Invoice, InvoiceStatus, Client, EmailTemplate } from "@/types";
 
 // ─── Date formatters ──────────────────────────────────────────────────────────
 
@@ -80,7 +91,178 @@ function TimelineItem({
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Send-email modal ─────────────────────────────────────────────────────────
+
+interface SendEmailModalProps {
+  invoice: Invoice & { client: Client };
+  onClose: () => void;
+  onSent: () => void;
+}
+
+function interpolatePreview(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `[${key}]`);
+}
+
+function SendEmailModal({ invoice, onClose, onSent }: SendEmailModalProps) {
+  const supabase = createBrowserClient();
+  const [templates, setTemplates]         = useState<EmailTemplate[]>([]);
+  const [templateId, setTemplateId]       = useState<string>("none");
+  const [recipientEmail, setRecipientEmail] = useState(invoice.client.email ?? "");
+  const [sending, setSending]             = useState(false);
+  const [loadingTpl, setLoadingTpl]       = useState(true);
+
+  // Load templates
+  useEffect(() => {
+    supabase.from("email_templates").select("*").order("name")
+      .then(({ data }) => { setTemplates((data ?? []) as EmailTemplate[]); setLoadingTpl(false); });
+  }, []);
+
+  // Build preview variables
+  const clientName = `${invoice.client.last_name} ${invoice.client.first_name}`.trim();
+  const previewVars: Record<string, string> = {
+    client_name:    clientName,
+    ugyfel_neve:    clientName,
+    invoice_number: invoice.invoice_number,
+    szamla_szam:    invoice.invoice_number,
+    total:          invoice.total ? `€ ${invoice.total.toFixed(2).replace(".", ",")}` : "—",
+    vegosszeg:      invoice.total ? `€ ${invoice.total.toFixed(2).replace(".", ",")}` : "—",
+    due_date:       invoice.due_date ? invoice.due_date.slice(0, 10) : "—",
+    fizetes_hatarido: invoice.due_date ? invoice.due_date.slice(0, 10) : "—",
+    issue_date:     invoice.issue_date ? invoice.issue_date.slice(0, 10) : "—",
+    kiallitas_datum: invoice.issue_date ? invoice.issue_date.slice(0, 10) : "—",
+  };
+
+  const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
+  const previewSubject = selectedTemplate
+    ? interpolatePreview(selectedTemplate.subject, previewVars)
+    : `Számla: ${invoice.invoice_number}`;
+  const previewBody = selectedTemplate
+    ? interpolatePreview(selectedTemplate.body, previewVars)
+    : `Mellékletben találja a(z) ${invoice.invoice_number} számú számláját.\n\nKöszönjük!`;
+
+  async function handleSend() {
+    if (!recipientEmail) { toast.error("Adj meg email-t!"); return; }
+    setSending(true);
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: templateId === "none" ? null : templateId,
+          recipientEmail,
+        }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok || !data.success) throw new Error(data.error ?? "Ismeretlen hiba");
+      toast.success("Számla elküldve PDF csatolással!");
+      onSent();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Küldési hiba");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg space-y-5 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">Számla küldése emailben</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">{invoice.invoice_number} · PDF automatikusan csatolva</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-700 p-1">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Recipient */}
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium">Címzett email <span className="text-red-500">*</span></Label>
+          <Input
+            type="email"
+            value={recipientEmail}
+            onChange={(e) => setRecipientEmail(e.target.value)}
+            placeholder="pelda@email.com"
+          />
+          <p className="text-xs text-zinc-400">
+            Ügyfél: <span className="font-medium text-zinc-600">{clientName}</span>
+            {invoice.client.email && invoice.client.email !== recipientEmail && (
+              <button
+                className="ml-2 text-blue-500 hover:underline"
+                onClick={() => setRecipientEmail(invoice.client.email!)}
+              >
+                Visszaállítás ({invoice.client.email})
+              </button>
+            )}
+          </p>
+        </div>
+
+        {/* Template selector */}
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium">Email sablon</Label>
+          {loadingTpl ? (
+            <div className="h-9 rounded-md border border-zinc-200 bg-zinc-50 animate-pulse" />
+          ) : (
+            <Select value={templateId} onValueChange={setTemplateId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Sablon nélkül (alap szöveg) —</SelectItem>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}{t.type ? ` · ${t.type}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* Preview */}
+        <div className="space-y-2">
+          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 mb-1">Tárgy</p>
+            <p className="text-sm text-zinc-800">{previewSubject}</p>
+          </div>
+          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 max-h-44 overflow-y-auto">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 mb-1">Email szöveg előnézet</p>
+            <Textarea
+              readOnly
+              value={previewBody}
+              rows={6}
+              className="text-xs text-zinc-700 bg-transparent border-0 shadow-none resize-none p-0 focus-visible:ring-0"
+            />
+          </div>
+          <p className="text-[10px] text-zinc-400">A változók ({"{{"}...{"}}"}) automatikusan ki lesznek töltve küldéskor.</p>
+        </div>
+
+        {/* Attachment note */}
+        <div className="flex items-center gap-2 rounded-md bg-blue-50 border border-blue-100 px-3 py-2">
+          <FileDown className="h-4 w-4 text-blue-500 flex-shrink-0" />
+          <p className="text-xs text-blue-700 font-medium">{invoice.invoice_number}.pdf csatolva lesz az emailhez</p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" onClick={onClose} disabled={sending}>Mégse</Button>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={handleSend}
+            disabled={sending || !recipientEmail}
+          >
+            {sending
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Küldés…</>
+              : <><Send className="mr-2 h-4 w-4" />Küldés PDF-fel</>}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
   invoice: Invoice & { client: Client };
@@ -89,13 +271,14 @@ interface Props {
 
 export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) {
   const router = useRouter();
-  const { markAsPaid, deleteInvoice, generatePDF, sendInvoiceEmail } = useInvoices();
+  const { markAsPaid, deleteInvoice, generatePDF } = useInvoices();
 
   const [invoice, setInvoice]           = useState(initialInvoice);
   const [pdfUrl, setPdfUrl]             = useState<string | null>(null);
   const [pdfLoading, setPdfLoading]     = useState(false);
   const [showPaid, setShowPaid]         = useState(false);
   const [showDelete, setShowDelete]     = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
   const { client } = invoice;
@@ -103,7 +286,6 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
   const isPaid      = invoice.status === "paid";
   const isCancelled = invoice.status === "cancelled";
 
-  // Generate (or re-generate) PDF
   async function regeneratePDF() {
     setPdfUrl(null);
     setIframeLoaded(false);
@@ -114,7 +296,6 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
     else toast.error("Hiba a PDF generalasakor");
   }
 
-  // Trigger PDF load on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void regeneratePDF(); }, []);
 
@@ -133,15 +314,6 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }
 
-  async function handleSendEmail() {
-    const result = await sendInvoiceEmail(invoice.id);
-    if (result) {
-      setInvoice((inv) => ({ ...inv, status: "sent" as InvoiceStatus, sent_at: new Date().toISOString() }));
-      toast.success("Számla kiállítottnak jelölve");
-      router.push(`/emails?invoice=${invoice.id}`);
-    } else toast.error("Hiba a küldés során");
-  }
-
   async function handleMarkPaid() {
     const ok = await markAsPaid(invoice.id);
     if (ok) {
@@ -157,6 +329,10 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
       toast.success(isEditable ? "Számla törölve" : "Számla lemondva");
       router.push("/invoices");
     } else toast.error("Hiba a törlés során");
+  }
+
+  function handleEmailSent() {
+    setInvoice((inv) => ({ ...inv, status: "sent" as InvoiceStatus, sent_at: new Date().toISOString() }));
   }
 
   return (
@@ -192,7 +368,12 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
             {pdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
             PDF letöltés
           </Button>
-          <Button variant="outline" size="sm" onClick={handleSendEmail}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowEmailModal(true)}
+            className="border-blue-200 text-blue-700 hover:bg-blue-50"
+          >
             <Mail className="mr-2 h-4 w-4" />Email küldés
           </Button>
           {!isPaid && !isCancelled && (
@@ -241,6 +422,8 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
               PDF nem elérhető
             </div>
           )}
+          {/* "not used" suppression */}
+          {iframeLoaded && false && null}
         </div>
 
         {/* Sidebar */}
@@ -318,6 +501,15 @@ export function InvoiceDetailView({ invoice: initialInvoice, settings }: Props) 
           </div>
         </div>
       </div>
+
+      {/* ── Email send modal ────────────────────────────────────────────────── */}
+      {showEmailModal && (
+        <SendEmailModal
+          invoice={invoice}
+          onClose={() => setShowEmailModal(false)}
+          onSent={handleEmailSent}
+        />
+      )}
 
       <ConfirmDialog
         open={showPaid}
