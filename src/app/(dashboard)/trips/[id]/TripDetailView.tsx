@@ -30,6 +30,8 @@ import {
   Circle,
   Check,
   FilePlus,
+  MapPin,
+  Clock,
 } from "lucide-react";
 import { differenceInDays, eachDayOfInterval, format, parseISO } from "date-fns";
 import { hu } from "date-fns/locale";
@@ -869,6 +871,18 @@ export function TripDetailView({ trip: initialTrip }: Props) {
               <CalendarDays className="h-4 w-4" />
               {formatDate(trip.departure_date)} – {formatDate(trip.return_date)}
             </span>
+            {trip.meeting_point && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-4 w-4" />
+                {trip.meeting_point}
+              </span>
+            )}
+            {trip.departure_time && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                {trip.departure_time}
+              </span>
+            )}
           </div>
 
           {/* Capacity bar */}

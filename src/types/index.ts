@@ -112,6 +112,8 @@ export interface Trip {
   base_price: number;
   vip_price: number | null;
   description: string | null;
+  meeting_point: string | null;
+  departure_time: string | null;
   status: TripStatus;
   total_revenue: number;
   total_costs: number;

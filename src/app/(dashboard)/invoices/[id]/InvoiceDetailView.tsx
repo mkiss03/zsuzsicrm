@@ -136,10 +136,10 @@ function SendEmailModal({ invoice, onClose, onSent }: SendEmailModalProps) {
           visszaerkezes_datum: (trip.return_date as string)?.slice(0, 10) ?? "",
           booking_code:     (bk.booking_code as string) ?? "",
           foglalas_kod:     (bk.booking_code as string) ?? "",
-          departure_time:   "",
-          indulasi_ido:     "",
-          meeting_point:    "",
-          talalkozasi_pont: "",
+          departure_time:   (trip.departure_time as string) ?? "",
+          indulasi_ido:     (trip.departure_time as string) ?? "",
+          meeting_point:    (trip.meeting_point as string) ?? "",
+          talalkozasi_pont: (trip.meeting_point as string) ?? "",
         });
       });
   }, [invoice.booking_id]);

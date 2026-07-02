@@ -60,8 +60,8 @@ function buildVariables(
     szabad_helyek:         String(avail),
     program:               (trip?.description  as string) ?? "",
     iroda_neve:            agencyName,
-    talalkozasi_pont:      "",
-    indulasi_ido:          "",
+    talalkozasi_pont:      (trip?.meeting_point as string) ?? "",
+    indulasi_ido:          (trip?.departure_time as string) ?? "",
   };
 
   // English aliases (existing seed templates)
@@ -77,8 +77,8 @@ function buildVariables(
     remaining_amount:  hunVars["hatralevo_osszeg"] ?? "",
     bank_account:      hunVars["iban"] ?? "",
     agency_name:       agencyName,
-    meeting_point:     "",
-    departure_time:    "",
+    meeting_point:     hunVars["talalkozasi_pont"] ?? "",
+    departure_time:    hunVars["indulasi_ido"] ?? "",
     promo_title:       "",
     promo_body:        "",
     booking_link:      `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/bookings/${booking?.id ?? ""}`,

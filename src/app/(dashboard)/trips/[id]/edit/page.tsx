@@ -102,6 +102,8 @@ export default function EditTripPage() {
           base_price: t.base_price,
           vip_price: t.vip_price,
           description: t.description ?? "",
+          meeting_point: t.meeting_point ?? "",
+          departure_time: t.departure_time ?? "",
           status: t.status,
         });
         setLoading(false);
@@ -251,6 +253,23 @@ export default function EditTripPage() {
           <Field label="Leírás / Program" error={errors.description?.message}>
             <Textarea {...register("description")} rows={5} disabled={submitting} />
           </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Találkozási pont" error={errors.meeting_point?.message}>
+              <Input
+                {...register("meeting_point")}
+                placeholder="pl. Liszt Ferenc reptér, 2. terminál"
+                disabled={submitting}
+              />
+            </Field>
+            <Field label="Indulási idő" error={errors.departure_time?.message}>
+              <Input
+                {...register("departure_time")}
+                placeholder="pl. 08:00"
+                disabled={submitting}
+              />
+            </Field>
+          </div>
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3">

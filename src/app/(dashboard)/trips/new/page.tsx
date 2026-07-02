@@ -327,6 +327,23 @@ export default function NewTripPage() {
             />
           </Field>
 
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Találkozási pont" error={errors.meeting_point?.message}>
+              <Input
+                {...register("meeting_point")}
+                placeholder="pl. Liszt Ferenc reptér, 2. terminál"
+                disabled={submitting}
+              />
+            </Field>
+            <Field label="Indulási idő" error={errors.departure_time?.message}>
+              <Input
+                {...register("departure_time")}
+                placeholder="pl. 08:00"
+                disabled={submitting}
+              />
+            </Field>
+          </div>
+
           {/* Trip code preview */}
           <div className="flex items-center justify-between rounded-md bg-zinc-50 border border-zinc-100 px-4 py-3">
             <span className="text-xs text-zinc-500">Generált kód előnézet</span>

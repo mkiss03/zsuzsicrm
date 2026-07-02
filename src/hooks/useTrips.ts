@@ -138,6 +138,8 @@ export function useTrips() {
           ...values,
           vip_price: values.vip_price ?? null,
           description: values.description || null,
+          meeting_point: values.meeting_point || null,
+          departure_time: values.departure_time || null,
         })
         .select()
         .single();
@@ -151,7 +153,12 @@ export function useTrips() {
     return run(async () => {
       const { data, error: sbErr } = await supabase
         .from("trips")
-        .update({ ...values, updated_at: new Date().toISOString() })
+        .update({
+          ...values,
+          meeting_point: values.meeting_point || null,
+          departure_time: values.departure_time || null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", id)
         .select()
         .single();

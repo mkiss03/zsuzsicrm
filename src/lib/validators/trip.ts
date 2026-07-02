@@ -10,6 +10,8 @@ export const tripSchema = z
     base_price: z.coerce.number().min(0, "Nem lehet negatív"),
     vip_price: z.coerce.number().min(0).optional().nullable(),
     description: z.string().optional(),
+    meeting_point: z.string().optional(),
+    departure_time: z.string().optional(),
     status: z
       .enum(["planned", "advertised", "full", "ongoing", "completed", "cancelled"])
       .default("planned"),
