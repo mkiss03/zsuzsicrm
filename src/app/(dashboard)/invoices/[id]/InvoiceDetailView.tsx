@@ -105,11 +105,12 @@ function interpolatePreview(text: string, vars: Record<string, string>): string 
 
 function SendEmailModal({ invoice, onClose, onSent }: SendEmailModalProps) {
   const supabase = createBrowserClient();
-  const [templates, setTemplates]         = useState<EmailTemplate[]>([]);
-  const [templateId, setTemplateId]       = useState<string>("none");
+  const [templates, setTemplates]           = useState<EmailTemplate[]>([]);
+  const [templateId, setTemplateId]         = useState<string>("none");
   const [recipientEmail, setRecipientEmail] = useState(invoice.client.email ?? "");
-  const [sending, setSending]             = useState(false);
-  const [loadingTpl, setLoadingTpl]       = useState(true);
+  const [sending, setSending]               = useState(false);
+  const [loadingTpl, setLoadingTpl]         = useState(true);
+  const [bookingVars, setBookingVars]       = useState<Record<string, string>>({});
 
   // Load templates
   useEffect(() => {
@@ -117,19 +118,47 @@ function SendEmailModal({ invoice, onClose, onSent }: SendEmailModalProps) {
       .then(({ data }) => { setTemplates((data ?? []) as EmailTemplate[]); setLoadingTpl(false); });
   }, []);
 
+  // Load booking + trip variables if invoice has a booking_id
+  useEffect(() => {
+    if (!invoice.booking_id) return;
+    supabase.from("bookings").select("*, trip:trips(*)")
+      .eq("id", invoice.booking_id).single()
+      .then(({ data }) => {
+        if (!data) return;
+        const trip = (data as { trip?: Record<string, unknown> }).trip ?? {};
+        const bk   = data as Record<string, unknown>;
+        setBookingVars({
+          trip_name:        (trip.name as string) ?? "",
+          ut_neve:          (trip.name as string) ?? "",
+          departure_date:   (trip.departure_date as string)?.slice(0, 10) ?? "",
+          indulas_datum:    (trip.departure_date as string)?.slice(0, 10) ?? "",
+          return_date:      (trip.return_date as string)?.slice(0, 10) ?? "",
+          visszaerkezes_datum: (trip.return_date as string)?.slice(0, 10) ?? "",
+          booking_code:     (bk.booking_code as string) ?? "",
+          foglalas_kod:     (bk.booking_code as string) ?? "",
+          departure_time:   "",
+          indulasi_ido:     "",
+          meeting_point:    "",
+          talalkozasi_pont: "",
+        });
+      });
+  }, [invoice.booking_id]);
+
   // Build preview variables
   const clientName = `${invoice.client.last_name} ${invoice.client.first_name}`.trim();
+  const fmtTotal = invoice.total ? `€ ${invoice.total.toFixed(2).replace(".", ",")}` : "—";
   const previewVars: Record<string, string> = {
-    client_name:    clientName,
-    ugyfel_neve:    clientName,
-    invoice_number: invoice.invoice_number,
-    szamla_szam:    invoice.invoice_number,
-    total:          invoice.total ? `€ ${invoice.total.toFixed(2).replace(".", ",")}` : "—",
-    vegosszeg:      invoice.total ? `€ ${invoice.total.toFixed(2).replace(".", ",")}` : "—",
-    due_date:       invoice.due_date ? invoice.due_date.slice(0, 10) : "—",
+    ...bookingVars,
+    client_name:      clientName,
+    ugyfel_neve:      clientName,
+    invoice_number:   invoice.invoice_number,
+    szamla_szam:      invoice.invoice_number,
+    total:            fmtTotal,
+    vegosszeg:        fmtTotal,
+    due_date:         invoice.due_date ? invoice.due_date.slice(0, 10) : "—",
     fizetes_hatarido: invoice.due_date ? invoice.due_date.slice(0, 10) : "—",
-    issue_date:     invoice.issue_date ? invoice.issue_date.slice(0, 10) : "—",
-    kiallitas_datum: invoice.issue_date ? invoice.issue_date.slice(0, 10) : "—",
+    issue_date:       invoice.issue_date ? invoice.issue_date.slice(0, 10) : "—",
+    kiallitas_datum:  invoice.issue_date ? invoice.issue_date.slice(0, 10) : "—",
   };
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
