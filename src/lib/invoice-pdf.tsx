@@ -342,6 +342,13 @@ export function InvoicePDF({ invoice, client, settings, eurHufRate, exchangeRate
                 <Text style={S.advanceValHuf}>{fmtHuf((adv.total ?? 0) * rate)}</Text>
               </View>
             ))}
+            {advanceItems.length > 0 && (
+              <View style={S.remainRow}>
+                <Text style={S.remainLabel}>Restzahlung / Helyszínen fizetendő:</Text>
+                <Text style={S.remainVal}>{fmtEur(remainingEur)}</Text>
+                <Text style={S.remainValHuf}>{fmtHuf(remainingEur * rate)}</Text>
+              </View>
+            )}
           </View>
         </View>
 
