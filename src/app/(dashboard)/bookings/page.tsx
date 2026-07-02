@@ -48,6 +48,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { sumPaymentsEur, fetchEurHufRate } from "@/lib/currency";
 import type { BookingStatus, ClientSource, Trip } from "@/types";
 import type { BookingStats } from "@/hooks/useBookings";
 
@@ -204,14 +205,11 @@ export default function BookingsPage() {
 
   async function openQuickPayment(row: BookingRow) {
     setPaymentTarget(row);
-    const { data } = await supabase
-      .from("payments")
-      .select("amount, type")
-      .eq("booking_id", row.id);
-    const totalPaid = (data ?? []).reduce(
-      (s: number, p: { amount: number; type: string }) => (p.type === "refund" ? s - p.amount : s + p.amount),
-      0,
-    );
+    const [{ data }, eurHufRate] = await Promise.all([
+      supabase.from("payments").select("amount, type, currency").eq("booking_id", row.id),
+      fetchEurHufRate(),
+    ]);
+    const totalPaid = sumPaymentsEur((data ?? []) as { amount: number; type: string; currency: string | null }[], eurHufRate);
     const remaining = row.final_amount != null ? Math.max(row.final_amount - totalPaid, 0) : 0;
     setPaymentRemaining(remaining);
   }
@@ -257,14 +255,17 @@ export default function BookingsPage() {
       overdueOnly,
     });
     if (all && all.length > 0) {
-      const { data: pays } = await supabase
-        .from("payments")
-        .select("booking_id, amount, type")
-        .in("booking_id", all.map((b) => b.id));
+      const [{ data: pays }, eurHufRate] = await Promise.all([
+        supabase.from("payments").select("booking_id, amount, type, currency").in("booking_id", all.map((b) => b.id)),
+        fetchEurHufRate(),
+      ]);
+      const byBooking: Record<string, { amount: number; type: string; currency: string | null }[]> = {};
+      for (const p of (pays ?? []) as { booking_id: string; amount: number; type: string; currency: string | null }[]) {
+        (byBooking[p.booking_id] ??= []).push(p);
+      }
       const paidByBooking: Record<string, number> = {};
-      for (const p of (pays ?? []) as { booking_id: string; amount: number; type: string }[]) {
-        paidByBooking[p.booking_id] = (paidByBooking[p.booking_id] ?? 0) +
-          (p.type === "refund" ? -p.amount : p.amount);
+      for (const [bookingId, ps] of Object.entries(byBooking)) {
+        paidByBooking[bookingId] = sumPaymentsEur(ps, eurHufRate);
       }
       exportCSV(all, paidByBooking);
     } else {

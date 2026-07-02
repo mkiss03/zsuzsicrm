@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { sumPaymentsEur, fetchEurHufRate } from "@/lib/currency";
 import type { Booking, BookingParticipant, BookingStatus, Client, Trip, Payment } from "@/types";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 
@@ -85,8 +86,11 @@ export function BookingDetailView({ booking: initialBooking, initialPayments }: 
   const { client, trip } = booking;
   const discountMeta = DISCOUNT_META[client.discount_level] ?? DISCOUNT_META[0];
 
-  // Total paid
-  const totalPaid = payments.reduce((s, p) => p.type === "refund" ? s - p.amount : s + p.amount, 0);
+  const [eurHufRate, setEurHufRate] = useState(395);
+  useEffect(() => { void fetchEurHufRate().then(setEurHufRate); }, []);
+
+  // Total paid — HUF payments (e.g. via huf_account) are converted to EUR
+  const totalPaid = sumPaymentsEur(payments, eurHufRate);
   const remaining = booking.final_amount != null ? Math.max(booking.final_amount - totalPaid, 0) : null;
 
   async function handleStatusChange(newStatus: BookingStatus) {

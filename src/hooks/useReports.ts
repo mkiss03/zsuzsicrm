@@ -2,6 +2,7 @@
 
 import React, { useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { toEur, fetchEurHufRate } from "@/lib/currency";
 import type { TripStatus } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -127,10 +128,10 @@ export function useReports() {
       const start = `${year}-01-01`;
       const end   = `${year}-12-31T23:59:59`;
 
-      const [{ data: payments }, { data: bookings }] = await Promise.all([
+      const [{ data: payments }, { data: bookings }, eurHufRate] = await Promise.all([
         supabase
           .from("payments")
-          .select("amount, type, payment_date")
+          .select("amount, type, payment_date, currency")
           .gte("payment_date", start)
           .lte("payment_date", end),
         supabase
@@ -140,6 +141,7 @@ export function useReports() {
           .not("status", "in", '("cancelled","interested")')
           .gte("created_at", start)
           .lte("created_at", end),
+        fetchEurHufRate(),
       ]);
 
       const rev: Record<number, number> = {};
@@ -148,7 +150,8 @@ export function useReports() {
 
       for (const p of payments ?? []) {
         const m = new Date(p.payment_date).getMonth() + 1;
-        rev[m]! += p.type === "refund" ? -p.amount : p.amount;
+        const eur = toEur(p.amount, p.currency, eurHufRate);
+        rev[m]! += p.type === "refund" ? -eur : eur;
       }
       for (const b of bookings ?? []) {
         const m = new Date(b.created_at).getMonth() + 1;
@@ -168,10 +171,10 @@ export function useReports() {
   // ── getRevenueVsCosts ──────────────────────────────────────────────────────
   const getRevenueVsCosts = useCallback(
     async (startDate: string, endDate: string): Promise<RevenueCostsRow[]> => {
-      const [{ data: payments }, { data: costs }] = await Promise.all([
+      const [{ data: payments }, { data: costs }, eurHufRate] = await Promise.all([
         supabase
           .from("payments")
-          .select("amount, type, payment_date")
+          .select("amount, type, payment_date, currency")
           .gte("payment_date", startDate)
           .lte("payment_date", endDate + "T23:59:59"),
         supabase
@@ -179,6 +182,7 @@ export function useReports() {
           .select("amount, cost_date")
           .gte("cost_date", startDate)
           .lte("cost_date", endDate),
+        fetchEurHufRate(),
       ]);
 
       const map: Record<string, { year: number; month: number; revenue: number; costs: number }> = {};
@@ -187,7 +191,8 @@ export function useReports() {
         const d = new Date(p.payment_date);
         const k = `${d.getFullYear()}-${d.getMonth() + 1}`;
         if (!map[k]) map[k] = { year: d.getFullYear(), month: d.getMonth() + 1, revenue: 0, costs: 0 };
-        map[k]!.revenue += p.type === "refund" ? -p.amount : p.amount;
+        const eur = toEur(p.amount, p.currency, eurHufRate);
+        map[k]!.revenue += p.type === "refund" ? -eur : eur;
       }
       for (const c of costs ?? []) {
         if (!c.cost_date) continue;
@@ -213,10 +218,10 @@ export function useReports() {
   // ── getSummaryStats ────────────────────────────────────────────────────────
   const getSummaryStats = useCallback(
     async (startDate: string, endDate: string): Promise<SummaryStats> => {
-      const [{ data: payments }, { data: costs }, { count: bookingCount }] = await Promise.all([
+      const [{ data: payments }, { data: costs }, { count: bookingCount }, eurHufRate] = await Promise.all([
         supabase
           .from("payments")
-          .select("amount, type")
+          .select("amount, type, currency")
           .gte("payment_date", startDate)
           .lte("payment_date", endDate + "T23:59:59"),
         supabase
@@ -231,10 +236,11 @@ export function useReports() {
           .not("status", "in", '("cancelled","interested")')
           .gte("created_at", startDate)
           .lte("created_at", endDate + "T23:59:59"),
+        fetchEurHufRate(),
       ]);
 
       const totalRevenue = (payments ?? []).reduce(
-        (s, p) => s + (p.type === "refund" ? -p.amount : p.amount),
+        (s, p) => s + (p.type === "refund" ? -toEur(p.amount, p.currency, eurHufRate) : toEur(p.amount, p.currency, eurHufRate)),
         0,
       );
       const totalCosts = (costs ?? []).reduce((s, c) => s + c.amount, 0);
@@ -500,7 +506,7 @@ export function useReports() {
     async (startDate?: string, endDate?: string) => {
       let q = supabase
         .from("payments")
-        .select("amount,type,payment_date,notes,booking:bookings!inner(booking_code,client:clients(last_name,first_name),trip:trips(name))")
+        .select("amount,type,currency,payment_date,notes,booking:bookings!inner(booking_code,client:clients(last_name,first_name),trip:trips(name))")
         .order("payment_date", { ascending: false });
 
       if (startDate) q = q.gte("payment_date", startDate);
@@ -509,6 +515,7 @@ export function useReports() {
       const { data } = await q;
       if (!data?.length) return;
 
+      const eurHufRate = await fetchEurHufRate();
       const TYPE_MAP: Record<string, string> = {
         deposit: "Előleg", full_payment: "Teljes", partial: "Részleges", refund: "Visszatérítés",
       };
@@ -518,7 +525,7 @@ export function useReports() {
       ], data.map((p) => {
         const bk = p.booking as unknown as { booking_code: string; client: { last_name: string; first_name: string } | null; trip: { name: string } | null } | null;
         return [
-          p.payment_date.slice(0, 10), String(p.amount),
+          p.payment_date.slice(0, 10), String(toEur(p.amount, p.currency, eurHufRate)),
           TYPE_MAP[p.type] ?? p.type,
           bk?.booking_code ?? "",
           bk?.client ? `${bk.client.last_name} ${bk.client.first_name}` : "",

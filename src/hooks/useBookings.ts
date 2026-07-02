@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Booking, BookingStatus, BookingParticipant, Payment, PaymentType, ClientSource } from "@/types";
 import type { BookingFormValues, PaymentFormValues } from "@/lib/validators/booking";
+import { sumPaymentsEur, fetchEurHufRate, toEur } from "@/lib/currency";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -51,13 +52,11 @@ function deriveStatus(
   finalAmount: number | null,
   payments: Payment[],
   newPaymentType: PaymentType,
+  eurHufRate: number,
 ): BookingStatus {
   if (currentStatus === "cancelled" || currentStatus === "completed") return currentStatus;
 
-  const netPaid = payments.reduce(
-    (sum, p) => (p.type === "refund" ? sum - p.amount : sum + p.amount),
-    0,
-  );
+  const netPaid = sumPaymentsEur(payments, eurHufRate);
   const hasDeposit = payments.some((p) => p.type === "deposit");
 
   if (finalAmount != null && netPaid >= finalAmount) return "fully_paid";
@@ -445,11 +444,13 @@ export function useBookings() {
 
         if (!booking) throw new Error("Booking not found");
 
+        const eurHufRate = await fetchEurHufRate();
         const newStatus = deriveStatus(
           booking.status as BookingStatus,
           booking.final_amount as number | null,
           (allPayments ?? []) as Payment[],
           values.type,
+          eurHufRate,
         );
 
         const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -500,10 +501,8 @@ export function useBookings() {
         }
 
         const payments = (remaining ?? []) as Payment[];
-        const netPaid = payments.reduce(
-          (s, p) => (p.type === "refund" ? s - p.amount : s + p.amount),
-          0,
-        );
+        const eurHufRate = await fetchEurHufRate();
+        const netPaid = sumPaymentsEur(payments, eurHufRate);
         const hasDeposit = payments.some((p) => p.type === "deposit");
 
         let newStatus: BookingStatus = "interested";
@@ -539,7 +538,7 @@ export function useBookings() {
       const today = new Date().toISOString().slice(0, 10);
       const firstOfMonth = `${today.slice(0, 7)}-01`;
 
-      const [activeRes, awaitingRes, overdueRes, revenueRes] = await Promise.all([
+      const [activeRes, awaitingRes, overdueRes, revenueRes, eurHufRate] = await Promise.all([
         supabase
           .from("bookings")
           .select("*", { count: "exact", head: true })
@@ -558,13 +557,15 @@ export function useBookings() {
           .not("status", "in", '("fully_paid","completed","cancelled")'),
         supabase
           .from("payments")
-          .select("amount")
+          .select("amount, currency")
           .gte("payment_date", firstOfMonth)
           .neq("type", "refund"),
+        fetchEurHufRate(),
       ]);
 
       const monthRevenue = (revenueRes.data ?? []).reduce(
-        (s: number, p: { amount: number }) => s + (p.amount ?? 0),
+        (s: number, p: { amount: number; currency: string | null }) =>
+          s + toEur(p.amount ?? 0, p.currency, eurHufRate),
         0,
       );
 

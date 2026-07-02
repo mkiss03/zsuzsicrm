@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { toEur, sumPaymentsEur, fetchEurHufRate } from "@/lib/currency";
 import type { Payment, BookingStatus, PaymentType } from "@/types";
 
 // ─── Payment type badges ──────────────────────────────────────────────────────
@@ -51,12 +52,12 @@ export function PaymentHistory({
   const { deletePayment, loading } = useBookings();
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [eurHufRate, setEurHufRate] = useState(395);
 
-  // Net paid = sum of non-refund - sum of refunds
-  const totalPaid = payments.reduce(
-    (s, p) => (p.type === "refund" ? s - p.amount : s + p.amount),
-    0,
-  );
+  useEffect(() => { void fetchEurHufRate().then(setEurHufRate); }, []);
+
+  // Net paid = sum of non-refund - sum of refunds, HUF payments converted to EUR
+  const totalPaid = sumPaymentsEur(payments, eurHufRate);
   const remaining = finalAmount != null ? Math.max(finalAmount - totalPaid, 0) : null;
   const overpaid  = finalAmount != null && totalPaid > finalAmount;
 
@@ -144,7 +145,12 @@ export function PaymentHistory({
                       isRefund ? "text-red-600" : "text-zinc-900",
                     )}
                   >
-                    {isRefund ? "-" : "+"}{formatCurrency(payment.amount, "EUR")}
+                    {isRefund ? "-" : "+"}{formatCurrency(toEur(payment.amount, payment.currency, eurHufRate), "EUR")}
+                    {payment.currency === "HUF" && (
+                      <span className="ml-1 text-xs font-normal text-zinc-400">
+                        ({formatCurrency(payment.amount, "HUF")})
+                      </span>
+                    )}
                   </span>
                   {!isLocked && (
                     <Button
